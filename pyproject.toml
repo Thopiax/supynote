@@ -1,0 +1,30 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "supynote"
+version = "1.0.0"
+description = "A simple CLI tool to interact with Supernote devices"
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+    "requests>=2.25.0",
+    "beautifulsoup4>=4.9.0",
+    "supernotelib>=0.6.0",
+    "aiohttp>=3.8.0",
+    "aiofiles>=23.0.0",
+    "transformers>=4.46.3",
+    "torch>=2.5.1",
+    "torchvision>=0.20.1",
+    "pymupdf>=1.24.11",
+    "pillow>=10.4.0",
+    "numpy>=1.24.4",
+    "opencv-python>=4.8.0",
+]
+
+[project.scripts]
+supynote = "supynote.cli:main"
+
+[tool.uv]
+dev-dependencies = []
