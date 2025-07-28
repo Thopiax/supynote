@@ -54,6 +54,7 @@ Examples:
     download_parser.add_argument("--no-async", dest="use_async", action="store_false", help="Use traditional sync downloader")
     download_parser.add_argument("--convert-pdf", action="store_true", help="Convert downloaded .note files to PDF")
     download_parser.add_argument("--conversion-workers", type=int, default=4, help="Number of parallel PDF conversion workers (default: 4)")
+    download_parser.add_argument("--ocr", action="store_true", help="Create searchable PDFs using native text extraction (requires --convert-pdf)")
     download_parser.add_argument("--force", action="store_true", help="Force re-download even if files exist locally")
     download_parser.add_argument("--check-size", action="store_true", default=True, help="Skip files if local size matches remote (default: true)")
     
@@ -69,6 +70,13 @@ Examples:
     # Info command
     subparsers.add_parser("info", help="Show device information")
     
+    # Validate command
+    validate_parser = subparsers.add_parser("validate", help="Find corrupted .note files in downloaded directory")
+    validate_parser.add_argument("directory", nargs="?", default="./supernote_files", help="Directory to validate (default: ./supynote_files)")
+    validate_parser.add_argument("--workers", type=int, default=8, help="Number of parallel validation workers (default: 8)")
+    validate_parser.add_argument("--fix", action="store_true", help="Re-download all problematic files (requires device connection)")
+    validate_parser.add_argument("--convert", action="store_true", help="Convert re-downloaded files to PDF after fixing")
+    
     # OCR command
     ocr_parser = subparsers.add_parser("ocr", help="OCR handwritten PDFs to make them searchable")
     ocr_parser.add_argument("input", help="PDF file or directory to process")
@@ -77,7 +85,7 @@ Examples:
     ocr_parser.add_argument("--workers", type=int, default=4, help="Number of parallel workers for batch processing (default: 4)")
     ocr_parser.add_argument("--check-existing", action="store_true", default=True, help="Skip PDFs that already have searchable text")
     ocr_parser.add_argument("--force", action="store_true", help="Process even if PDF already has searchable text")
-    ocr_parser.add_argument("--engine", choices=["native", "llava", "trocr"], default="native", help="OCR engine to use (default: native)")
+    ocr_parser.add_argument("--engine", choices=["native", "gemini", "llava", "trocr"], default="native", help="OCR engine to use (default: native)")
     ocr_parser.add_argument("--ollama-url", default="http://localhost:11434", help="Ollama API URL (default: http://localhost:11434)")
     
     args = parser.parse_args()
@@ -138,6 +146,20 @@ Examples:
                             local_file = device.local_root / args.path.lstrip('/')
                             converter = PDFConverter(vectorize=True, enable_links=True)
                             converter.convert_file(local_file)
+                            
+                            # OCR the converted PDF if requested
+                            if args.ocr:
+                                pdf_file = local_file.with_suffix('.pdf')
+                                if pdf_file.exists():
+                                    from .ocr.native_service import NativeSupernoteService
+                                    native_service = NativeSupernoteService()
+                                    searchable_pdf = pdf_file.with_stem(f"{pdf_file.stem}_searchable")
+                                    print(f"🔍 Creating searchable PDF...")
+                                    native_service.convert_note_to_searchable_pdf(local_file, searchable_pdf)
+                                    # Remove intermediate PDF
+                                    pdf_file.unlink()
+                                    # Rename searchable PDF to original name
+                                    searchable_pdf.rename(pdf_file)
                     else:
                         # Downloading a directory with async
                         success, total = await device.download_directory_async(args.path, args.workers, args.force, args.check_size)
@@ -146,6 +168,41 @@ Examples:
                             local_dir = device.local_root / args.path.lstrip('/')
                             converter = PDFConverter(vectorize=True, enable_links=True)
                             converter.convert_directory(local_dir, max_workers=args.conversion_workers)
+                            
+                            # OCR the converted PDFs if requested
+                            if args.ocr:
+                                from .ocr.native_service import NativeSupernoteService
+                                native_service = NativeSupernoteService()
+                                
+                                # Find all .note files that were converted
+                                note_files = list(local_dir.glob("**/*.note"))
+                                print(f"🔍 Creating searchable PDFs for {len(note_files)} files...")
+                                
+                                from concurrent.futures import ThreadPoolExecutor, as_completed
+                                
+                                def process_note_for_ocr(note_file):
+                                    pdf_file = note_file.with_suffix('.pdf')
+                                    if pdf_file.exists():
+                                        searchable_pdf = pdf_file.with_stem(f"{pdf_file.stem}_searchable")
+                                        success = native_service.convert_note_to_searchable_pdf(note_file, searchable_pdf)
+                                        if success:
+                                            # Remove intermediate PDF
+                                            pdf_file.unlink()
+                                            # Rename searchable PDF to original name
+                                            searchable_pdf.rename(pdf_file)
+                                            return True
+                                    return False
+                                
+                                successful_ocr = 0
+                                with ThreadPoolExecutor(max_workers=args.conversion_workers) as executor:
+                                    futures = {executor.submit(process_note_for_ocr, note_file): note_file 
+                                              for note_file in note_files}
+                                    
+                                    for future in as_completed(futures):
+                                        if future.result():
+                                            successful_ocr += 1
+                                
+                                print(f"🎉 Created {successful_ocr}/{len(note_files)} searchable PDFs")
                 finally:
                     await device.close_async()
             
@@ -161,6 +218,20 @@ Examples:
                     local_file = device.local_root / args.path.lstrip('/')
                     converter = PDFConverter(vectorize=True, enable_links=True)
                     converter.convert_file(local_file)
+                    
+                    # OCR the converted PDF if requested
+                    if args.ocr:
+                        pdf_file = local_file.with_suffix('.pdf')
+                        if pdf_file.exists():
+                            from .ocr.native_service import NativeSupernoteService
+                            native_service = NativeSupernoteService()
+                            searchable_pdf = pdf_file.with_stem(f"{pdf_file.stem}_searchable")
+                            print(f"🔍 Creating searchable PDF...")
+                            native_service.convert_note_to_searchable_pdf(local_file, searchable_pdf)
+                            # Remove intermediate PDF
+                            pdf_file.unlink()
+                            # Rename searchable PDF to original name
+                            searchable_pdf.rename(pdf_file)
             else:
                 # Downloading a directory
                 success, total = device.download_directory(args.path, args.workers, args.force, args.check_size)
@@ -169,6 +240,41 @@ Examples:
                     local_dir = device.local_root / args.path.lstrip('/')
                     converter = PDFConverter(vectorize=True, enable_links=True)
                     converter.convert_directory(local_dir, max_workers=args.conversion_workers)
+                    
+                    # OCR the converted PDFs if requested
+                    if args.ocr:
+                        from .ocr.native_service import NativeSupernoteService
+                        native_service = NativeSupernoteService()
+                        
+                        # Find all .note files that were converted
+                        note_files = list(local_dir.glob("**/*.note"))
+                        print(f"🔍 Creating searchable PDFs for {len(note_files)} files...")
+                        
+                        from concurrent.futures import ThreadPoolExecutor, as_completed
+                        
+                        def process_note_for_ocr(note_file):
+                            pdf_file = note_file.with_suffix('.pdf')
+                            if pdf_file.exists():
+                                searchable_pdf = pdf_file.with_stem(f"{pdf_file.stem}_searchable")
+                                success = native_service.convert_note_to_searchable_pdf(note_file, searchable_pdf)
+                                if success:
+                                    # Remove intermediate PDF
+                                    pdf_file.unlink()
+                                    # Rename searchable PDF to original name
+                                    searchable_pdf.rename(pdf_file)
+                                    return True
+                            return False
+                        
+                        successful_ocr = 0
+                        with ThreadPoolExecutor(max_workers=args.conversion_workers) as executor:
+                            futures = {executor.submit(process_note_for_ocr, note_file): note_file 
+                                      for note_file in note_files}
+                            
+                            for future in as_completed(futures):
+                                if future.result():
+                                    successful_ocr += 1
+                        
+                        print(f"🎉 Created {successful_ocr}/{len(note_files)} searchable PDFs")
     
     elif args.command == "convert":
         # Handle convert command - works with local files only
@@ -205,6 +311,154 @@ Examples:
         if args.output:
             print(f"  Local directory: {Path(args.output).absolute()}")
     
+    elif args.command == "validate":
+        # Handle validate command - works with local files only
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        import supernotelib as sn
+        
+        validate_dir = Path(args.directory)
+        if not validate_dir.exists():
+            print(f"❌ Directory not found: {validate_dir}")
+            return
+        
+        # Find all .note files
+        note_files = list(validate_dir.glob("**/*.note"))
+        if not note_files:
+            print(f"❌ No .note files found in {validate_dir}")
+            return
+        
+        print(f"🔍 Validating {len(note_files)} .note files with {args.workers} workers...")
+        
+        corrupted_files = []
+        unsupported_files = []
+        
+        def validate_note_file(note_file):
+            try:
+                # Try to load the notebook with loose policy
+                notebook = sn.load_notebook(str(note_file), policy='loose')
+                if notebook is None:
+                    return note_file, "Failed to load notebook", "corrupted"
+                
+                # Try to get basic info
+                total_pages = notebook.get_total_pages()
+                if total_pages is None:
+                    return note_file, "Cannot determine page count", "corrupted"
+                
+                return note_file, None, "valid"  # Success
+                
+            except Exception as e:
+                error_msg = str(e)
+                if "unsupported file format" in error_msg.lower():
+                    return note_file, error_msg, "unsupported"
+                else:
+                    return note_file, error_msg, "corrupted"
+        
+        # Validate files in parallel
+        with ThreadPoolExecutor(max_workers=args.workers) as executor:
+            # Submit all validation jobs
+            future_to_file = {
+                executor.submit(validate_note_file, note_file): note_file
+                for note_file in note_files
+            }
+            
+            # Collect results as they complete
+            for future in as_completed(future_to_file):
+                note_file = future_to_file[future]
+                try:
+                    file_path, error, error_type = future.result()
+                    if error:
+                        if error_type == "unsupported":
+                            print(f"⚠️ {file_path.relative_to(validate_dir)}: {error}")
+                            unsupported_files.append(file_path)
+                        else:
+                            print(f"❌ {file_path.relative_to(validate_dir)}: {error}")
+                            corrupted_files.append(file_path)
+                    else:
+                        print(f"✅ {file_path.relative_to(validate_dir)}: OK")
+                except Exception as e:
+                    print(f"❌ {note_file.relative_to(validate_dir)}: Validation error: {e}")
+                    corrupted_files.append(note_file)
+        
+        print(f"\n📊 Validation complete:")
+        print(f"  ✅ Valid files: {len(note_files) - len(corrupted_files) - len(unsupported_files)}")
+        print(f"  ❌ Corrupted files: {len(corrupted_files)}")  
+        print(f"  ⚠️ Unsupported format files: {len(unsupported_files)}")
+        
+        if unsupported_files:
+            print(f"\n⚠️ Unsupported format files (may be corrupted downloads):")
+            for file_path in unsupported_files:
+                print(f"  - {file_path.relative_to(validate_dir)}")
+            print("💡 These files may be corrupted downloads or from newer firmware versions")
+        
+        if corrupted_files:
+            print(f"\n🔧 Corrupted files:")
+            for file_path in corrupted_files:
+                print(f"  - {file_path.relative_to(validate_dir)}")
+            
+        # Combine all problematic files for fixing
+        all_problematic_files = corrupted_files + unsupported_files
+        
+        if all_problematic_files and args.fix:
+                # Re-download corrupted files
+                if not args.ip:
+                    print("\n🔍 Looking for Supernote device...")
+                    ip = find_device()
+                    if not ip:
+                        print("\n❌ No Supernote device found for re-download.")
+                        print("💡 Make sure your device is on and connected to the same network")
+                        print("💡 Or use --ip to specify the device IP manually")
+                        return
+                else:
+                    ip = args.ip
+                
+                # Test device connection before proceeding
+                print(f"📡 Testing connection to device at {ip}...")
+                device = Supernote(ip, args.port, str(validate_dir.parent))
+                test_data = device.list_files("")
+                if not test_data:
+                    print(f"❌ Cannot connect to device at {ip}:{args.port}")
+                    print("💡 Check that the device is accessible and try again")
+                    return
+                
+                print(f"\n🔄 Re-downloading {len(all_problematic_files)} problematic files from {ip}...")
+                print(f"🔍 validate_dir: {validate_dir}")  # Debug
+                device = Supernote(ip, args.port, str(validate_dir.parent))
+                
+                success_count = 0
+                fixed_files = []
+                for file_path in all_problematic_files:
+                    # Calculate remote path (relative to validate_dir) - just "Note/filename.note"
+                    rel_path = file_path.relative_to(validate_dir)
+                    remote_path = str(rel_path).replace('\\', '/')  # Ensure forward slashes
+                    
+                    print(f"🔄 Re-downloading {remote_path}...")
+                    # Pass the full local path to preserve the supernote_files structure
+                    if device.download_file(remote_path, local_path=file_path, force=True):
+                        success_count += 1
+                        fixed_files.append(file_path)
+                        print(f"✅ Re-downloaded {remote_path}")
+                    else:
+                        print(f"❌ Failed to re-download {remote_path}")
+                
+                print(f"\n🎉 Re-download complete: {success_count}/{len(all_problematic_files)} files fixed")
+                
+                # Convert fixed files to PDF if requested
+                if args.convert and fixed_files:
+                    print(f"\n📄 Converting {len(fixed_files)} fixed files to PDF...")
+                    converter = PDFConverter(vectorize=True, enable_links=True)
+                    
+                    convert_success = 0
+                    for file_path in fixed_files:
+                        print(f"🔄 Converting {file_path.name} to PDF...")
+                        if converter.convert_file(file_path):
+                            convert_success += 1
+                        
+                    print(f"🎉 Conversion complete: {convert_success}/{len(fixed_files)} PDFs created")
+        elif all_problematic_files:
+            print(f"\n💡 Use --fix to re-download {len(all_problematic_files)} problematic files")
+        else:
+            print(f"\n🎉 All files are valid!")
+    
     elif args.command == "ocr":
         # Handle OCR command - works with local PDFs
         from .ocr.trocr_service import TrOCRService
@@ -227,6 +481,15 @@ Examples:
                     native_service = NativeSupernoteService()
                     
                     output_path = Path(args.output) if args.output else input_path.with_stem(f"{input_path.stem}_searchable").with_suffix('.pdf')
+                    
+                    # Skip if searchable PDF already exists and is newer
+                    if output_path.exists() and not args.force:
+                        input_mtime = input_path.stat().st_mtime
+                        output_mtime = output_path.stat().st_mtime
+                        if output_mtime > input_mtime:
+                            print(f"⏭️ Skipping {input_path.name} (searchable PDF is newer)")
+                            print("💡 Use --force to re-process anyway")
+                            return
                     
                     def progress_callback(current, total, message):
                         print(f"📊 [{current:3.0f}%] {message}")
@@ -274,8 +537,19 @@ Examples:
                     
                     # Prepare work items
                     work_items = []
+                    skipped_count = 0
                     for i, note_file in enumerate(note_files):
                         output_file = output_dir / f"{note_file.stem}_searchable.pdf"
+                        
+                        # Skip if searchable PDF already exists and is newer
+                        if output_file.exists() and not args.force:
+                            input_mtime = note_file.stat().st_mtime
+                            output_mtime = output_file.stat().st_mtime
+                            if output_mtime > input_mtime:
+                                print(f"⏭️ Skipping {note_file.name} (searchable PDF is newer)")
+                                skipped_count += 1
+                                continue
+                        
                         work_items.append((i, note_file, output_file))
                     
                     # Process in parallel
@@ -293,6 +567,9 @@ Examples:
                                 successful += 1
                     
                     print(f"\n🎉 Native batch conversion completed: {successful}/{len(note_files)} files")
+                    if skipped_count > 0:
+                        print(f"⏭️ Skipped {skipped_count} files (searchable PDFs already exist)")
+                        print(f"💡 Use --force to re-process existing files")
                     return
                 
                 else:

@@ -31,9 +31,9 @@ class Supernote:
         # Async session (created when needed)
         self._session: Optional['aiohttp.ClientSession'] = None
     
-    def _get_headers(self):
+    def _get_headers(self, force_no_cache: bool = False):
         """Get Safari-like headers for compatibility."""
-        return {
+        headers = {
             'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Safari/605.1.15',
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
             'Accept-Language': 'en-US,en;q=0.9',
@@ -42,6 +42,15 @@ class Supernote:
             'Priority': 'u=0, i',
             'Upgrade-Insecure-Requests': '1',
         }
+        
+        if force_no_cache:
+            headers.update({
+                'Cache-Control': 'no-cache, no-store, must-revalidate',
+                'Pragma': 'no-cache',
+                'Expires': '0'
+            })
+            
+        return headers
     
     def list_files(self, directory: str = "") -> Optional[Dict]:
         """List files and directories on the Supernote device."""
@@ -111,8 +120,22 @@ class Supernote:
         
         try:
             print(f"⬇️ Downloading {remote_path}")
-            response = requests.get(url, headers=self._get_headers(), timeout=30)
+            print(f"🔗 URL: {url}")
+            
+            # Use no-cache headers when force=True to ensure fresh download
+            response = requests.get(url, headers=self._get_headers(force_no_cache=force), timeout=30)
             response.raise_for_status()
+            
+            # Get content size and type for debugging
+            content_size = len(response.content)
+            content_type = response.headers.get('content-type', 'unknown')
+            print(f"📊 Downloaded {content_size} bytes, Content-Type: {content_type}")
+            
+            # Check if we got HTML instead of binary content
+            if content_type.lower().startswith('text/html') or response.content.startswith(b'<!DOCTYPE') or response.content.startswith(b'<html'):
+                print(f"⚠️ Warning: Got HTML content instead of binary file!")
+                print(f"🔍 First 200 chars: {response.content[:200]}")
+                return False
             
             with open(local_path, 'wb') as f:
                 f.write(response.content)

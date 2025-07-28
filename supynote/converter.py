@@ -43,10 +43,10 @@ class PDFConverter:
         file_size = input_path.stat().st_size
         if file_size < 100:  # Less than 100 bytes is likely corrupted
             return False, f"File appears corrupted (too small: {file_size} bytes)"
-        
+
         # Try to load notebook to check if it's valid
         try:
-            notebook = sn.load_notebook(str(input_path))
+            notebook = sn.load_notebook(str(input_path), policy='loose')
             if notebook is None:
                 return False, "Failed to load notebook (file may be corrupted)"
             
@@ -60,7 +60,7 @@ class PDFConverter:
         except Exception as e:
             return False, f"File validation failed: {str(e)}"
 
-    def convert_file(self, input_path: Union[str, Path], output_path: Optional[Union[str, Path]] = None) -> bool:
+    def convert_file(self, input_path: Union[str, Path], output_path: Optional[Union[str, Path]] = None, skip_existing: bool = True) -> bool:
         """
         Convert a single .note file to PDF with robust error handling.
         
@@ -88,7 +88,7 @@ class PDFConverter:
         if output_path.exists():
             input_mtime = input_path.stat().st_mtime
             output_mtime = output_path.stat().st_mtime
-            if output_mtime > input_mtime:
+            if output_mtime > input_mtime and skip_existing:
                 print(f"⏭️ Skipping {input_path.name} (PDF is newer)")
                 return True
         
@@ -99,7 +99,7 @@ class PDFConverter:
             print(f"🔄 Converting {input_path.name} to PDF...")
             
             # Load the notebook (already validated above)
-            notebook = sn.load_notebook(str(input_path))
+            notebook = sn.load_notebook(str(input_path), policy='loose')
             total_pages = notebook.get_total_pages()
             
             if total_pages == 0:
@@ -281,7 +281,7 @@ class PDFConverter:
             return None
         
         try:
-            notebook = sn.load_notebook(str(note_path))
+            notebook = sn.load_notebook(str(note_path), policy='loose')
             
             return {
                 "file_path": str(note_path),
