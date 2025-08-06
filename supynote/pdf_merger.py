@@ -63,8 +63,11 @@ def merge_pdfs_by_date(directory: Path, time_range: str = "all") -> None:
         print("❌ PyPDF not available. Run: uv add pypdf")
         return
     
-    # Find all PDF files
-    pdf_files = list(directory.glob("**/*.pdf"))
+    # Find all PDF files, excluding the merged_by_date directory
+    all_pdf_files = list(directory.glob("**/*.pdf"))
+    # Exclude files in the merged_by_date directory
+    pdf_files = [f for f in all_pdf_files if "merged_by_date" not in str(f)]
+    
     if not pdf_files:
         print("❌ No PDF files found to merge")
         return
@@ -83,14 +86,8 @@ def merge_pdfs_by_date(directory: Path, time_range: str = "all") -> None:
     # Group files by date
     files_by_date: Dict[str, List[tuple[Path, datetime]]] = {}
     skipped_by_time = 0
-    skipped_merged = 0
     
     for pdf_file in pdf_files:
-        # Skip already merged files
-        if re.match(r'^\d{4}-\d{2}-\d{2}\.pdf$', pdf_file.name):
-            skipped_merged += 1
-            continue
-        
         # Extract actual creation date from filename
         creation_date = _extract_date_from_filename(pdf_file)
         
@@ -106,12 +103,8 @@ def merge_pdfs_by_date(directory: Path, time_range: str = "all") -> None:
         files_by_date[file_date].append((pdf_file, creation_date))
     
     if not files_by_date:
-        if skipped_by_time > 0 and skipped_merged > 0:
-            print(f"✅ No files to merge ({skipped_merged} already merged, {skipped_by_time} outside time range: {time_range})")
-        elif skipped_by_time > 0:
+        if skipped_by_time > 0:
             print(f"✅ No files to merge ({skipped_by_time} files outside time range: {time_range})")
-        elif skipped_merged > 0:
-            print(f"✅ No files to merge ({skipped_merged} files already merged)")
         else:
             print("✅ No files to merge")
         return
@@ -124,8 +117,6 @@ def merge_pdfs_by_date(directory: Path, time_range: str = "all") -> None:
     print(f"📚 Merging {total_files} PDFs into {len(files_by_date)} date-based files...")
     if skipped_by_time > 0:
         print(f"⏭️ Skipped {skipped_by_time} files outside time range: {time_range}")
-    if skipped_merged > 0:
-        print(f"⏭️ Skipped {skipped_merged} already merged files")
     
     # Merge PDFs for each date
     for date_str, date_files in sorted(files_by_date.items()):
@@ -135,10 +126,9 @@ def merge_pdfs_by_date(directory: Path, time_range: str = "all") -> None:
         output_file = merged_dir / f"{date_str}.pdf"
         
         if output_file.exists():
-            print(f"⏭️ Skipping {date_str}.pdf (already exists)")
-            continue
-        
-        print(f"📝 Creating {date_str}.pdf with {len(date_files)} files...")
+            print(f"🔄 Overwriting {date_str}.pdf with updated content...")
+        else:
+            print(f"📝 Creating {date_str}.pdf with {len(date_files)} files...")
         
         merger = PdfWriter()
         
@@ -161,6 +151,14 @@ def merge_pdfs_by_date(directory: Path, time_range: str = "all") -> None:
     
     print(f"🎉 Merged PDFs saved to {merged_dir}")
     print(f"📊 Summary: {total_files} files merged into {len(files_by_date)} date-based PDFs")
+    
+    # List the final merged files
+    final_merged = sorted(merged_dir.glob("*.pdf"))
+    if final_merged:
+        print(f"\n📁 Merged files in {merged_dir.name}/:")
+        for pdf in final_merged:
+            size_mb = pdf.stat().st_size / (1024 * 1024)
+            print(f"  📄 {pdf.name} ({size_mb:.1f} MB)")
 
 
 def merge_pdfs_with_custom_names(pdf_files: List[Path], output_file: Path) -> bool:

@@ -28,4 +28,6 @@ dependencies = [
 supynote = "supynote.cli:main"
 
 [tool.uv]
-dev-dependencies = []
+dev-dependencies = [
+    "pytest>=8.3.5",
+]

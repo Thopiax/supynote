@@ -117,8 +117,17 @@ Examples:
         parser.print_help()
         return
     
+    # Try to handle through DDD architecture first
+    try:
+        from .presentation.cli.dispatcher import CommandDispatcher
+        if CommandDispatcher.try_dispatch(args.command, args):
+            return
+    except ImportError:
+        pass  # DDD modules not available, use legacy
+    
     # Handle commands that don't need device connection
     if args.command == "find":
+        # Legacy implementation (fallback)
         ip = find_device()
         if ip and args.open:
             url = f"http://{ip}:{args.port}"
@@ -141,6 +150,7 @@ Examples:
         device = Supernote(ip, args.port, args.output)
     
     if args.command == "browse":
+        # Legacy implementation (fallback)
         url = f"http://{ip}:{args.port}"
         print(f"🌐 Opening {url} in browser...")
         webbrowser.open(url)
@@ -343,6 +353,7 @@ Examples:
             print(f"❌ Invalid path: {input_path}")
     
     elif args.command == "info":
+        # Legacy implementation (fallback)
         info = device.get_device_info()
         print(f"\n📱 Supernote Device Info:")
         print(f"  IP: {info['ip']}")

@@ -22,7 +22,10 @@
       "Bash(uv add:*)",
       "Bash(./alfred_sync.sh:*)",
       "Bash(./sync_supernote.sh:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(mkdir:*)",
+      "Bash(touch:*)",
+      "Bash(supynote find:*)"
     ],
     "deny": []
   }
