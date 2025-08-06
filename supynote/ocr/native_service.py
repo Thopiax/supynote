@@ -135,7 +135,8 @@ class NativeSupernoteService:
     def convert_note_to_searchable_pdf(self, 
                                      note_path: Path, 
                                      output_path: Path,
-                                     progress_callback: Optional[callable] = None) -> bool:
+                                     progress_callback: Optional[callable] = None,
+                                     existing_pdf_path: Optional[Path] = None) -> bool:
         """
         Convert a .note file to a searchable PDF using native text extraction.
         
@@ -143,6 +144,7 @@ class NativeSupernoteService:
             note_path: Path to input .note file
             output_path: Path for output searchable PDF
             progress_callback: Optional progress callback
+            existing_pdf_path: Optional path to existing PDF (avoids reconversion)
             
         Returns:
             True if successful, False otherwise
@@ -153,16 +155,22 @@ class NativeSupernoteService:
             progress_callback(0, 100, f"Loading {note_path.name}...")
         
         try:
-            # First, convert the .note to PDF using existing converter
-            from ..converter import PDFConverter
-            
-            # Create a temporary PDF first
-            temp_pdf_path = output_path.with_suffix('.temp.pdf')
-            
-            converter = PDFConverter(vectorize=True, enable_links=True)
-            if not converter.convert_file(note_path, temp_pdf_path):
-                print(f"❌ Failed to convert {note_path.name} to PDF")
-                return False
+            # Use existing PDF if provided, otherwise convert
+            if existing_pdf_path and existing_pdf_path.exists():
+                temp_pdf_path = existing_pdf_path
+                if progress_callback:
+                    progress_callback(25, 100, "Using existing PDF...")
+            else:
+                # Only convert if we don't have an existing PDF
+                from ..converter import PDFConverter
+                
+                # Create a temporary PDF first
+                temp_pdf_path = output_path.with_suffix('.temp.pdf')
+                
+                converter = PDFConverter(vectorize=True, enable_links=True)
+                if not converter.convert_file(note_path, temp_pdf_path):
+                    print(f"❌ Failed to convert {note_path.name} to PDF")
+                    return False
             
             if progress_callback:
                 progress_callback(30, 100, "Extracting native text...")
@@ -193,8 +201,8 @@ class NativeSupernoteService:
             self._current_note_path = note_path
             success = self._add_positioned_text_to_pdf(temp_pdf_path, positioned_elements, output_path)
             
-            # Clean up temporary file
-            if temp_pdf_path.exists():
+            # Clean up temporary file only if we created it
+            if not existing_pdf_path and temp_pdf_path.exists() and temp_pdf_path.suffix == '.pdf':
                 temp_pdf_path.unlink()
             
             if success:

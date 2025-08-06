@@ -3,6 +3,8 @@ import sys
 from pathlib import Path
 from typing import Optional, List, Union
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime, timedelta
+import re
 
 try:
     import supernotelib as sn
@@ -25,6 +27,52 @@ class PDFConverter:
         """
         self.vectorize = vectorize
         self.enable_links = enable_links
+    
+    def _extract_date_from_note(self, note_path: Path) -> Optional[datetime]:
+        """Extract creation date from .note filename or metadata."""
+        filename = note_path.stem
+        
+        # Try to parse YYYYMMDD_HHMMSS format
+        if re.match(r'^\d{8}_\d{6}', filename):
+            date_part = filename[:15]
+            try:
+                return datetime.strptime(date_part, '%Y%m%d_%H%M%S')
+            except ValueError:
+                pass
+        
+        # Try to extract from metadata
+        try:
+            notebook = sn.load_notebook(str(note_path))
+            if notebook:
+                metadata = notebook.get_metadata()
+                if hasattr(metadata, 'header') and hasattr(metadata.header, 'created_time'):
+                    return datetime.fromtimestamp(metadata.header.created_time)
+        except:
+            pass
+        
+        # Fallback to file modification time
+        return datetime.fromtimestamp(note_path.stat().st_mtime)
+    
+    def _should_include_file(self, note_path: Path, time_range: str) -> bool:
+        """Check if file should be included based on time range."""
+        if time_range == "all":
+            return True
+        
+        file_date = self._extract_date_from_note(note_path)
+        if not file_date:
+            return True  # Include if we can't determine date
+        
+        now = datetime.now()
+        if time_range == "week":
+            cutoff = now - timedelta(days=7)
+        elif time_range == "2weeks":
+            cutoff = now - timedelta(days=14)
+        elif time_range == "month":
+            cutoff = now - timedelta(days=30)
+        else:
+            return True
+        
+        return file_date >= cutoff
     
     def _validate_note_file(self, input_path: Path) -> tuple[bool, str]:
         """
@@ -146,7 +194,7 @@ class PDFConverter:
             print(f"❌ Unexpected error converting {input_path.name}: {e}")
             return False
     
-    def convert_directory(self, input_dir: Union[str, Path], output_dir: Optional[Union[str, Path]] = None, recursive: bool = True, max_workers: int = 4) -> tuple[int, int]:
+    def convert_directory(self, input_dir: Union[str, Path], output_dir: Optional[Union[str, Path]] = None, recursive: bool = True, max_workers: int = 4, time_range: str = "all") -> tuple[int, int]:
         """
         Convert all .note files in a directory to PDF with parallel processing.
         
@@ -155,6 +203,7 @@ class PDFConverter:
             output_dir: Output directory for PDFs (optional, defaults to same directory)
             recursive: Search subdirectories (default: True)
             max_workers: Maximum number of parallel conversion workers (default: 4)
+            time_range: Time range filter (week, 2weeks, month, all)
             
         Returns:
             Tuple of (successful_conversions, total_files)
@@ -173,13 +222,28 @@ class PDFConverter:
         
         # Find all .note files
         pattern = "**/*.note" if recursive else "*.note"
-        note_files = list(input_dir.glob(pattern))
+        all_note_files = list(input_dir.glob(pattern))
         
-        if not note_files:
+        if not all_note_files:
             print(f"❌ No .note files found in {input_dir}")
             return 0, 0
         
+        # Filter files based on time range
+        note_files = []
+        skipped_by_time = 0
+        for note_file in all_note_files:
+            if self._should_include_file(note_file, time_range):
+                note_files.append(note_file)
+            else:
+                skipped_by_time += 1
+        
+        if not note_files:
+            print(f"✅ No files to convert ({skipped_by_time} files outside time range: {time_range})")
+            return 0, 0
+        
         print(f"📁 Converting {len(note_files)} .note file(s) with {max_workers} workers")
+        if skipped_by_time > 0:
+            print(f"⏭️ Skipping {skipped_by_time} files outside time range: {time_range}")
         
         # Prepare conversion tasks
         conversion_tasks = []

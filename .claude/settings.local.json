@@ -17,7 +17,12 @@
       "Bash(mv:*)",
       "Bash(ls:*)",
       "Bash(cat:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(chmod:*)",
+      "Bash(uv add:*)",
+      "Bash(./alfred_sync.sh:*)",
+      "Bash(./sync_supernote.sh:*)",
+      "Bash(grep:*)"
     ],
     "deny": []
   }

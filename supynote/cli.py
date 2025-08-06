@@ -3,10 +3,25 @@
 import argparse
 import webbrowser
 from pathlib import Path
+import os
 
 from .device_finder import find_device
 from .supernote import Supernote
 from .converter import PDFConverter
+
+
+def get_optimal_workers():
+    """Get optimal worker count based on CPU cores."""
+    try:
+        cpu_count = os.cpu_count() or 4
+        # For M4 Pro and similar high-performance systems, be more aggressive
+        # Use 2x CPU cores for I/O bound tasks (downloads), capped at 30
+        download_workers = min(cpu_count * 2, 30)
+        # Use CPU cores for CPU-bound tasks (conversion/OCR), capped at 16
+        conversion_workers = min(cpu_count, 16)
+        return download_workers, conversion_workers
+    except:
+        return 20, 8  # Reasonable defaults
 
 
 def main():
@@ -47,16 +62,21 @@ Examples:
     list_parser.add_argument("directory", nargs="?", default="", help="Directory to list")
     
     # Download command
+    default_download_workers, default_conversion_workers = get_optimal_workers()
     download_parser = subparsers.add_parser("download", help="Download files from device")
     download_parser.add_argument("path", help="File or directory path to download")
-    download_parser.add_argument("--workers", type=int, default=20, help="Number of concurrent downloads (default: 20)")
+    download_parser.add_argument("--workers", type=int, default=default_download_workers, 
+                                help=f"Number of concurrent downloads (default: {default_download_workers})")
     download_parser.add_argument("--async", dest="use_async", action="store_true", default=True, help="Use high-performance async downloader")
     download_parser.add_argument("--no-async", dest="use_async", action="store_false", help="Use traditional sync downloader")
     download_parser.add_argument("--convert-pdf", action="store_true", help="Convert downloaded .note files to PDF")
-    download_parser.add_argument("--conversion-workers", type=int, default=4, help="Number of parallel PDF conversion workers (default: 4)")
+    download_parser.add_argument("--conversion-workers", type=int, default=default_conversion_workers, 
+                                help=f"Number of parallel PDF conversion workers (default: {default_conversion_workers})")
     download_parser.add_argument("--ocr", action="store_true", help="Create searchable PDFs using native text extraction (requires --convert-pdf)")
     download_parser.add_argument("--force", action="store_true", help="Force re-download even if files exist locally")
     download_parser.add_argument("--check-size", action="store_true", default=True, help="Skip files if local size matches remote (default: true)")
+    download_parser.add_argument("--time-range", choices=["week", "2weeks", "month", "all"], default="all", help="Download files from time range (default: all)")
+    download_parser.add_argument("--merge-by-date", action="store_true", help="Merge PDFs by date, naming files as YYYY-MM-DD.pdf")
     
     # Convert command
     convert_parser = subparsers.add_parser("convert", help="Convert .note files to PDF")
@@ -65,7 +85,8 @@ Examples:
     convert_parser.add_argument("--no-vector", action="store_true", help="Disable vector format (use raster)")
     convert_parser.add_argument("--no-links", action="store_true", help="Disable hyperlinks in PDF")
     convert_parser.add_argument("--recursive", "-r", action="store_true", default=True, help="Process subdirectories (default: true)")
-    convert_parser.add_argument("--workers", type=int, default=4, help="Number of parallel conversion workers (default: 4)")
+    convert_parser.add_argument("--workers", type=int, default=default_conversion_workers, 
+                               help=f"Number of parallel conversion workers (default: {default_conversion_workers})")
     
     # Info command
     subparsers.add_parser("info", help="Show device information")
@@ -73,7 +94,8 @@ Examples:
     # Validate command
     validate_parser = subparsers.add_parser("validate", help="Find corrupted .note files in downloaded directory")
     validate_parser.add_argument("directory", nargs="?", default="./supernote_files", help="Directory to validate (default: ./supynote_files)")
-    validate_parser.add_argument("--workers", type=int, default=8, help="Number of parallel validation workers (default: 8)")
+    validate_parser.add_argument("--workers", type=int, default=default_conversion_workers, 
+                                help=f"Number of parallel validation workers (default: {default_conversion_workers})")
     validate_parser.add_argument("--fix", action="store_true", help="Re-download all problematic files (requires device connection)")
     validate_parser.add_argument("--convert", action="store_true", help="Convert re-downloaded files to PDF after fixing")
     
@@ -82,7 +104,8 @@ Examples:
     ocr_parser.add_argument("input", help="PDF file or directory to process")
     ocr_parser.add_argument("--output", "-o", help="Output file or directory")
     ocr_parser.add_argument("--batch", action="store_true", help="Process directory of PDFs")
-    ocr_parser.add_argument("--workers", type=int, default=4, help="Number of parallel workers for batch processing (default: 4)")
+    ocr_parser.add_argument("--workers", type=int, default=default_conversion_workers, 
+                           help=f"Number of parallel workers for batch processing (default: {default_conversion_workers})")
     ocr_parser.add_argument("--check-existing", action="store_true", default=True, help="Skip PDFs that already have searchable text")
     ocr_parser.add_argument("--force", action="store_true", help="Process even if PDF already has searchable text")
     ocr_parser.add_argument("--engine", choices=["native", "gemini", "llava", "trocr"], default="native", help="OCR engine to use (default: native)")
@@ -162,14 +185,16 @@ Examples:
                                     searchable_pdf.rename(pdf_file)
                     else:
                         # Downloading a directory with async
-                        success, total = await device.download_directory_async(args.path, args.workers, args.force, args.check_size)
+                        success, total = await device.download_directory_async(
+                            args.path, args.workers, args.force, args.check_size, 
+                            time_range=args.time_range)
                         print(f"🎉 Async download completed: {success}/{total} files")
                         if args.convert_pdf:
                             local_dir = device.local_root / args.path.lstrip('/')
                             converter = PDFConverter(vectorize=True, enable_links=True)
-                            converter.convert_directory(local_dir, max_workers=args.conversion_workers)
+                            converter.convert_directory(local_dir, max_workers=args.conversion_workers, time_range=args.time_range)
                             
-                            # OCR the converted PDFs if requested
+                            # OCR the converted PDFs if requested (do this BEFORE merging)
                             if args.ocr:
                                 from .ocr.native_service import NativeSupernoteService
                                 native_service = NativeSupernoteService()
@@ -184,7 +209,9 @@ Examples:
                                     pdf_file = note_file.with_suffix('.pdf')
                                     if pdf_file.exists():
                                         searchable_pdf = pdf_file.with_stem(f"{pdf_file.stem}_searchable")
-                                        success = native_service.convert_note_to_searchable_pdf(note_file, searchable_pdf)
+                                        # Pass existing PDF to avoid reconversion
+                                        success = native_service.convert_note_to_searchable_pdf(
+                                            note_file, searchable_pdf, existing_pdf_path=pdf_file)
                                         if success:
                                             # Remove intermediate PDF
                                             pdf_file.unlink()
@@ -203,6 +230,11 @@ Examples:
                                             successful_ocr += 1
                                 
                                 print(f"🎉 Created {successful_ocr}/{len(note_files)} searchable PDFs")
+                            
+                            # Merge searchable PDFs by date if requested (do this AFTER OCR)
+                            if args.merge_by_date:
+                                from .pdf_merger import merge_pdfs_by_date
+                                merge_pdfs_by_date(local_dir, args.time_range)
                 finally:
                     await device.close_async()
             
@@ -234,14 +266,16 @@ Examples:
                             searchable_pdf.rename(pdf_file)
             else:
                 # Downloading a directory
-                success, total = device.download_directory(args.path, args.workers, args.force, args.check_size)
+                success, total = device.download_directory(
+                    args.path, args.workers, args.force, args.check_size,
+                    time_range=args.time_range)
                 print(f"📊 Sync download completed: {success}/{total} files")
                 if args.convert_pdf:
                     local_dir = device.local_root / args.path.lstrip('/')
                     converter = PDFConverter(vectorize=True, enable_links=True)
-                    converter.convert_directory(local_dir, max_workers=args.conversion_workers)
+                    converter.convert_directory(local_dir, max_workers=args.conversion_workers, time_range=args.time_range)
                     
-                    # OCR the converted PDFs if requested
+                    # OCR the converted PDFs if requested (do this BEFORE merging)
                     if args.ocr:
                         from .ocr.native_service import NativeSupernoteService
                         native_service = NativeSupernoteService()
@@ -256,7 +290,9 @@ Examples:
                             pdf_file = note_file.with_suffix('.pdf')
                             if pdf_file.exists():
                                 searchable_pdf = pdf_file.with_stem(f"{pdf_file.stem}_searchable")
-                                success = native_service.convert_note_to_searchable_pdf(note_file, searchable_pdf)
+                                # Pass existing PDF to avoid reconversion
+                                success = native_service.convert_note_to_searchable_pdf(
+                                    note_file, searchable_pdf, existing_pdf_path=pdf_file)
                                 if success:
                                     # Remove intermediate PDF
                                     pdf_file.unlink()
@@ -275,6 +311,11 @@ Examples:
                                     successful_ocr += 1
                         
                         print(f"🎉 Created {successful_ocr}/{len(note_files)} searchable PDFs")
+                    
+                    # Merge searchable PDFs by date if requested (do this AFTER OCR)
+                    if args.merge_by_date:
+                        from .pdf_merger import merge_pdfs_by_date
+                        merge_pdfs_by_date(local_dir, args.time_range)
     
     elif args.command == "convert":
         # Handle convert command - works with local files only

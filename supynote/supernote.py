@@ -6,6 +6,7 @@ from bs4 import BeautifulSoup
 from pathlib import Path
 from typing import Dict, List, Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime, timedelta
 from .converter import PDFConverter
 
 try:
@@ -30,6 +31,40 @@ class Supernote:
         
         # Async session (created when needed)
         self._session: Optional['aiohttp.ClientSession'] = None
+    
+    def _should_include_file(self, file_info: Dict, time_range: str) -> bool:
+        """Check if file should be included based on time range filter."""
+        if time_range == "all":
+            return True
+            
+        # Get file date from the file info
+        file_date_str = file_info.get("date", "")
+        if not file_date_str:
+            # If no date info, include the file by default
+            return True
+            
+        try:
+            # Parse the date string (format might vary, adjust as needed)
+            # Assuming format like "2024-01-15 10:30" or similar
+            file_date = datetime.strptime(file_date_str.split()[0], "%Y-%m-%d")
+            now = datetime.now()
+            
+            # Calculate the cutoff date based on time range
+            if time_range == "week":
+                cutoff = now - timedelta(days=7)
+            elif time_range == "2weeks":
+                cutoff = now - timedelta(days=14)
+            elif time_range == "month":
+                cutoff = now - timedelta(days=30)
+            else:
+                return True  # Unknown range, include by default
+                
+            return file_date >= cutoff
+            
+        except (ValueError, IndexError) as e:
+            # If we can't parse the date, include the file by default
+            print(f"⚠️ Could not parse date '{file_date_str}': {e}")
+            return True
     
     def _get_headers(self, force_no_cache: bool = False):
         """Get Safari-like headers for compatibility."""
@@ -147,8 +182,8 @@ class Supernote:
             print(f"❌ Error downloading {remote_path}: {e}")
             return False
     
-    def download_directory(self, directory: str = "", max_workers: int = 4, force: bool = False, check_size: bool = True) -> tuple[int, int]:
-        """Download all files from a directory (recursive) with skip logic."""
+    def download_directory(self, directory: str = "", max_workers: int = 4, force: bool = False, check_size: bool = True, time_range: str = "all") -> tuple[int, int]:
+        """Download all files from a directory (recursive) with skip logic and time filtering."""
         data = self.list_files(directory)
         if not data or "fileList" not in data:
             print(f"❌ No files found in {directory}")
@@ -157,14 +192,19 @@ class Supernote:
         files_to_download = []
         file_info_map = {}
         directories_to_process = []
+        skipped_by_time = 0
         
         for item in data["fileList"]:
             if item["isDirectory"]:
                 directories_to_process.append(item["uri"])
             else:
-                file_path = item["uri"]
-                files_to_download.append(file_path)
-                file_info_map[file_path] = item
+                # Apply time range filter
+                if self._should_include_file(item, time_range):
+                    file_path = item["uri"]
+                    files_to_download.append(file_path)
+                    file_info_map[file_path] = item
+                else:
+                    skipped_by_time += 1
         
         successful_downloads = 0
         total_files = len(files_to_download)
@@ -172,6 +212,8 @@ class Supernote:
         # Download files in parallel
         if files_to_download:
             print(f"📦 Processing {total_files} files from {directory}")
+            if skipped_by_time > 0:
+                print(f"⏭️ Skipping {skipped_by_time} files outside time range: {time_range}")
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
                 futures = [
                     executor.submit(
@@ -192,19 +234,22 @@ class Supernote:
         
         # Process subdirectories recursively
         for subdir in directories_to_process:
-            subdir_success, subdir_total = self.download_directory(subdir.lstrip('/'), max_workers, force, check_size)
+            subdir_success, subdir_total = self.download_directory(subdir.lstrip('/'), max_workers, force, check_size, time_range)
             successful_downloads += subdir_success
             total_files += subdir_total
         
         return successful_downloads, total_files
     
-    async def download_directory_async(self, directory: str = "", max_concurrent: int = 20, force: bool = False, check_size: bool = True) -> tuple[int, int]:
+    async def download_directory_async(self, directory: str = "", max_concurrent: int = 20, force: bool = False, check_size: bool = True, time_range: str = "all") -> tuple[int, int]:
         """
-        High-performance async directory download with connection pooling.
+        High-performance async directory download with connection pooling and time filtering.
         
         Args:
             directory: Directory to download
             max_concurrent: Maximum concurrent downloads (default: 20)
+            force: Force re-download even if files exist
+            check_size: Skip files if local size matches remote
+            time_range: Time range filter (week, 2weeks, month, all)
             
         Returns:
             Tuple of (successful_downloads, total_files)
@@ -244,14 +289,19 @@ class Supernote:
             files_to_download = []
             file_info_map = {}
             directories_to_process = []
+            skipped_by_time = 0
             
             for item in data["fileList"]:
                 if item["isDirectory"]:
                     directories_to_process.append(item["uri"])
                 else:
-                    file_path = item["uri"]
-                    files_to_download.append(file_path)
-                    file_info_map[file_path] = item
+                    # Apply time range filter
+                    if self._should_include_file(item, time_range):
+                        file_path = item["uri"]
+                        files_to_download.append(file_path)
+                        file_info_map[file_path] = item
+                    else:
+                        skipped_by_time += 1
             
             successful_downloads = 0
             total_files = len(files_to_download)
@@ -259,6 +309,8 @@ class Supernote:
             # Download files with controlled concurrency
             if files_to_download:
                 print(f"📦 Processing {total_files} files from {directory} (max {max_concurrent} concurrent)")
+                if skipped_by_time > 0:
+                    print(f"⏭️ Skipping {skipped_by_time} files outside time range: {time_range}")
                 
                 # Semaphore to limit concurrent downloads
                 semaphore = asyncio.Semaphore(max_concurrent)
@@ -279,7 +331,7 @@ class Supernote:
             
             # Process subdirectories recursively
             for subdir in directories_to_process:
-                subdir_success, subdir_total = await self.download_directory_async(subdir.lstrip('/'), max_concurrent, force, check_size)
+                subdir_success, subdir_total = await self.download_directory_async(subdir.lstrip('/'), max_concurrent, force, check_size, time_range)
                 successful_downloads += subdir_success
                 total_files += subdir_total
             
