@@ -25,7 +25,8 @@
       "Bash(grep:*)",
       "Bash(mkdir:*)",
       "Bash(touch:*)",
-      "Bash(supynote find:*)"
+      "Bash(supynote find:*)",
+      "Bash(supynote merge:*)"
     ],
     "deny": []
   }

@@ -41,6 +41,9 @@ Examples:
   supynote ocr file.note           # Create searchable PDF from .note (native text)
   supynote ocr handwritten.pdf --engine llava  # OCR handwritten PDF with LLaVA
   supynote ocr notes/ --batch      # Batch process .note files to searchable PDFs
+  supynote merge                   # Merge PDFs and create markdown by date
+  supynote merge --time-range week # Merge only files from last week
+  supynote merge --pdf-only        # Only merge PDFs, skip markdown
         """
     )
     
@@ -111,6 +114,15 @@ Examples:
     ocr_parser.add_argument("--engine", choices=["native", "gemini", "llava", "trocr"], default="native", help="OCR engine to use (default: native)")
     ocr_parser.add_argument("--ollama-url", default="http://localhost:11434", help="Ollama API URL (default: http://localhost:11434)")
     
+    # Merge command
+    merge_parser = subparsers.add_parser("merge", help="Merge PDFs and create markdown files by date")
+    merge_parser.add_argument("directory", nargs="?", default="./supernote_files", help="Directory to process (default: ./supernote_files)")
+    merge_parser.add_argument("--pdf-output", default="pdf_notes", help="Output directory for merged PDFs (default: pdf_notes)")
+    merge_parser.add_argument("--markdown-output", default="markdown_notes", help="Output directory for markdown files (default: markdown_notes)")
+    merge_parser.add_argument("--time-range", choices=["week", "2weeks", "month", "all"], default="all", help="Time range filter (default: all)")
+    merge_parser.add_argument("--pdf-only", action="store_true", help="Only merge PDFs, skip markdown creation")
+    merge_parser.add_argument("--markdown-only", action="store_true", help="Only create markdown files, skip PDF merging")
+    
     args = parser.parse_args()
     
     if not args.command:
@@ -135,7 +147,7 @@ Examples:
             webbrowser.open(url)
         return
     
-    elif args.command in ["convert", "ocr"]:
+    elif args.command in ["convert", "ocr", "merge"]:
         # These commands work with local files only - no device needed
         pass
     
@@ -698,6 +710,34 @@ Examples:
             print(f"❌ OCR processing failed: {e}")
             import traceback
             traceback.print_exc()
+    
+    elif args.command == "merge":
+        # Handle merge command - works with local files
+        from .merger import DateBasedMerger, MergeConfig
+        
+        directory = Path(args.directory)
+        
+        if not directory.exists():
+            print(f"❌ Directory not found: {directory}")
+            return
+        
+        # Create merger with user configuration
+        config = MergeConfig(
+            pdf_output_dir=args.pdf_output,
+            markdown_output_dir=args.markdown_output,
+            time_range=args.time_range
+        )
+        
+        merger = DateBasedMerger(config)
+        
+        # Execute based on user flags
+        if args.pdf_only:
+            merger.merge_pdfs_by_date(directory)
+        elif args.markdown_only:
+            merger.merge_markdown_by_date(directory)
+        else:
+            # Default: merge both
+            merger.merge_all_by_date(directory)
 
 
 if __name__ == "__main__":
