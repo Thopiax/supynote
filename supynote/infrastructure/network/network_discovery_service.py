@@ -40,6 +40,13 @@ class NetworkDiscoveryService(DeviceDiscoveryService):
         
         return connections
     
+    def discover_device(self) -> Optional[str]:
+        """Discover and return the IP address of the first found device."""
+        connections = self.scan_network()
+        if connections:
+            return str(connections[0].ip_address)
+        return None
+    
     def is_device_available(self, connection: DeviceConnection) -> bool:
         """Check if a device is available at the given connection."""
         try:

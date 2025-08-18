@@ -66,7 +66,7 @@ class GetDeviceInfoUseCase:
         if discovered_ip:
             # Store for future use
             from ...domain.device_management.entities.device import Device
-            device = Device.create_discovered(discovered_ip, connection.port.value)
+            device = Device.discover(discovered_ip, str(connection.port.value))
             self._device_repository.save(device)
             return discovered_ip
         

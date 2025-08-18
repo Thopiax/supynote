@@ -83,7 +83,7 @@ This is a Python CLI tool for interacting with Supernote e-ink tablet devices ov
 
 ### File Structure Patterns
 
-- Downloads default to `./supernote_files/` directory
+- Downloads default to `./data/` directory
 - Maintains remote directory structure in local downloads
 - PDF conversion preserves relative paths when processing directories
 - All paths use `pathlib.Path` for cross-platform compatibility

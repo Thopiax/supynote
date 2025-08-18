@@ -20,14 +20,22 @@ except ImportError:
 class Supernote:
     """Simple interface to interact with Supernote devices."""
     
-    def __init__(self, ip_address: str, port: str = "8089", local_root: Optional[str] = None):
+    def __init__(self, ip_address: str, port: str = "8089", local_root: Optional[str] = None, verbose: bool = False):
         self.ip_address = ip_address
         self.port = port
         self.remote_root = f"http://{ip_address}:{port}"
-        self.local_root = Path(local_root) if local_root else Path.cwd() / "supernote_files"
+        self.local_root = Path(local_root) if local_root else Path.cwd() / "data"
+        self.verbose = verbose
         
-        # Ensure local directory exists
-        self.local_root.mkdir(parents=True, exist_ok=True)
+        # Create directory structure
+        self.raw_dir = self.local_root / "raw"
+        self.processed_dir = self.local_root / "processed"
+        
+        # Ensure directories exist
+        self.raw_dir.mkdir(parents=True, exist_ok=True)
+        self.processed_dir.mkdir(parents=True, exist_ok=True)
+        (self.processed_dir / "pdfs").mkdir(exist_ok=True)
+        (self.processed_dir / "markdowns").mkdir(exist_ok=True)
         
         # Async session (created when needed)
         self._session: Optional['aiohttp.ClientSession'] = None
@@ -120,7 +128,8 @@ class Supernote:
             return False
             
         if not check_size:
-            print(f"⏭️ Skipping {local_path.name} (exists locally)")
+            if self.verbose:
+                print(f"⏭️ Skipping {local_path.name} (exists locally)")
             return True
             
         # Compare file sizes if available
@@ -129,20 +138,22 @@ class Supernote:
             remote_size = remote_file_info["size"]
             
             if local_size == remote_size:
-                print(f"⏭️ Skipping {local_path.name} (same size: {local_size} bytes)")
+                if self.verbose:
+                    print(f"⏭️ Skipping {local_path.name} (same size: {local_size} bytes)")
                 return True
             else:
                 print(f"🔄 Re-downloading {local_path.name} (size changed: {local_size} → {remote_size} bytes)")
                 return False
         else:
             # No size info available, skip if file exists
-            print(f"⏭️ Skipping {local_path.name} (exists locally)")
+            if self.verbose:
+                print(f"⏭️ Skipping {local_path.name} (exists locally)")
             return True
 
     def download_file(self, remote_path: str, local_path: Optional[Path] = None, force: bool = False, check_size: bool = True, remote_file_info: Optional[Dict] = None) -> bool:
         """Download a single file from the device with skip logic."""
         if not local_path:
-            local_path = self.local_root / remote_path.lstrip('/')
+            local_path = self.raw_dir / remote_path.lstrip('/')
         
         # Check if we should skip this file
         if remote_file_info and self._should_skip_file(remote_file_info, local_path, force, check_size):
@@ -212,7 +223,7 @@ class Supernote:
         # Download files in parallel
         if files_to_download:
             print(f"📦 Processing {total_files} files from {directory}")
-            if skipped_by_time > 0:
+            if skipped_by_time > 0 and self.verbose:
                 print(f"⏭️ Skipping {skipped_by_time} files outside time range: {time_range}")
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
                 futures = [
@@ -309,7 +320,7 @@ class Supernote:
             # Download files with controlled concurrency
             if files_to_download:
                 print(f"📦 Processing {total_files} files from {directory} (max {max_concurrent} concurrent)")
-                if skipped_by_time > 0:
+                if skipped_by_time > 0 and self.verbose:
                     print(f"⏭️ Skipping {skipped_by_time} files outside time range: {time_range}")
                 
                 # Semaphore to limit concurrent downloads
@@ -368,7 +379,7 @@ class Supernote:
     async def _download_file_async(self, remote_path: str, local_path: Optional[Path] = None, semaphore: Optional[asyncio.Semaphore] = None, force: bool = False, check_size: bool = True, remote_file_info: Optional[Dict] = None) -> bool:
         """Async version of download_file with semaphore support."""
         if not local_path:
-            local_path = self.local_root / remote_path.lstrip('/')
+            local_path = self.raw_dir / remote_path.lstrip('/')
         
         # Check if we should skip this file
         if remote_file_info and self._should_skip_file(remote_file_info, local_path, force, check_size):
@@ -441,7 +452,7 @@ class Supernote:
         Returns:
             True if conversion successful, False otherwise
         """
-        local_path = self.local_root / file_or_dir.lstrip('/')
+        local_path = self.raw_dir / file_or_dir.lstrip('/')
         
         if not local_path.exists():
             print(f"❌ Local file not found: {local_path}")

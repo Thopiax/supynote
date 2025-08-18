@@ -26,6 +26,7 @@ class MergeConfig:
     markdown_output_dir: str = "markdown_notes"
     time_range: str = "all"  # week, 2weeks, month, all
     merge_by_date: bool = True
+    journals_dir: Optional[Path] = None  # Optional directory to copy markdown files to
 
 
 class DateBasedMerger:
@@ -143,7 +144,7 @@ class DateBasedMerger:
         
         # Create output directory
         output_dir = directory / self.config.pdf_output_dir
-        output_dir.mkdir(exist_ok=True)
+        output_dir.mkdir(parents=True, exist_ok=True)
         
         total_files = sum(len(files) for files in files_by_date.values())
         print(f"📚 Merging {total_files} PDFs into {len(files_by_date)} date-based files...")
@@ -239,7 +240,7 @@ class DateBasedMerger:
         
         # Create output directory
         output_dir = directory / self.config.markdown_output_dir
-        output_dir.mkdir(exist_ok=True)
+        output_dir.mkdir(parents=True, exist_ok=True)
         
         total_files = sum(len(files) for files in files_by_date.values())
         print(f"📝 Creating {len(files_by_date)} markdown files from {total_files} source files...")
@@ -275,6 +276,20 @@ class DateBasedMerger:
                 with open(output_file, 'w', encoding='utf-8') as f:
                     f.write('\n'.join(markdown_content))
                 print(f"✅ Created {output_file.name}")
+                
+                # Copy to journals directory if configured
+                if self.config.journals_dir:
+                    journals_path = Path(self.config.journals_dir)
+                    if journals_path.exists():
+                        journal_file = journals_path / output_file.name
+                        if not journal_file.exists():
+                            import shutil
+                            shutil.copy2(output_file, journal_file)
+                            print(f"  📔 Copied to journals: {journal_file}")
+                        else:
+                            print(f"  ⏭️ Journal entry already exists: {journal_file.name}")
+                    else:
+                        print(f"  ⚠️ Journals directory not found: {journals_path}")
             except Exception as e:
                 print(f"❌ Error writing {output_file.name}: {e}")
         

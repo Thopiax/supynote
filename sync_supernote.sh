@@ -15,7 +15,8 @@ cd "$SCRIPT_DIR"
 
 # Configuration
 TIME_RANGE="${1:-week}"  # Default to week if not specified
-OUTPUT_DIR="$HOME/Documents/Supernote"
+OUTPUT_DIR="$HOME/Documents/Supernote"  # Final processed output
+CACHE_DIR="$SCRIPT_DIR/data"  # Raw files cache
 NOTIFICATION_TITLE="Supernote Sync"
 
 # Function to send notification
@@ -64,27 +65,32 @@ fi
 notify "🔄 Starting sync..." "Time range: $TIME_RANGE"
 echo "🔄 Starting Supernote sync (time range: $TIME_RANGE)..."
 
-# Create output directory if it doesn't exist
+# Create directories if they don't exist
 mkdir -p "$OUTPUT_DIR"
+mkdir -p "$CACHE_DIR"
 
 # Run the sync command with specified time range
-$UV_CMD run supynote --output "$OUTPUT_DIR" download Note \
+# Raw files go to cache, processed files go to final output
+$UV_CMD run supynote --output "$CACHE_DIR" download Note \
     --time-range "$TIME_RANGE" \
     --convert-pdf \
     --merge-by-date \
     --ocr \
     --async \
     --workers 30 \
-    --conversion-workers 16 2>&1
+    --conversion-workers 16 \
+    --processed-output "$OUTPUT_DIR" 2>&1
 
 # Check the exit status
 if [ $? -eq 0 ]; then
     # Count files
-    PDF_COUNT=$(find "$OUTPUT_DIR/merged_by_date" -name "*.pdf" 2>/dev/null | wc -l | tr -d ' ')
+    PDF_COUNT=$(find "$OUTPUT_DIR/pdfs" -name "*.pdf" 2>/dev/null | wc -l | tr -d ' ')
     notify "✅ Sync completed successfully" "$PDF_COUNT merged PDFs created"
     echo "✅ Sync completed successfully!"
-    echo "📁 Files saved to: $OUTPUT_DIR"
-    echo "📚 Merged PDFs in: $OUTPUT_DIR/merged_by_date"
+    echo "📁 Raw files cached in: $CACHE_DIR"
+    echo "📚 Processed files in: $OUTPUT_DIR"
+    echo "  📄 Merged PDFs: $OUTPUT_DIR/pdfs"
+    echo "  📝 Markdown files: $OUTPUT_DIR/markdowns"
 else
     notify "❌ Sync failed" "Check the terminal for details"
     echo "❌ Sync failed. Check the error messages above."

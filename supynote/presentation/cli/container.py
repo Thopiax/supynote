@@ -6,12 +6,12 @@ from ...application.use_cases.find_device import FindDeviceUseCase
 from ...application.use_cases.browse_device import BrowseDeviceUseCase
 from ...application.use_cases.get_device_info import GetDeviceInfoUseCase
 from ...application.use_cases.list_files import ListFilesUseCase
-from ...application.use_cases.legacy_adapter import LegacyCommandAdapter
+from ...application.use_cases.download_use_case import DownloadUseCase
 from .commands.find_command import FindCommand
 from .commands.browse_command import BrowseCommand
 from .commands.info_command import InfoCommand
 from .commands.list_command import ListCommand
-from .commands.legacy_commands import (
+from .commands.commands import (
     DownloadCommand,
     ConvertCommand,
     ValidateCommand,
@@ -48,8 +48,8 @@ class DIContainer:
             discovery_service=self._discovery_service
         )
         
-        # Legacy adapter for commands not yet fully migrated
-        self._legacy_adapter = LegacyCommandAdapter(
+        # Use case for download and related operations
+        self._download_use_case = DownloadUseCase(
             device_repository=self._device_repository,
             discovery_service=self._discovery_service
         )
@@ -60,11 +60,11 @@ class DIContainer:
         self._info_command = InfoCommand(self._get_device_info_use_case)
         self._list_command = ListCommand(self._list_files_use_case)
         
-        # Legacy wrapped commands
-        self._download_command = DownloadCommand(self._legacy_adapter)
-        self._convert_command = ConvertCommand(self._legacy_adapter)
-        self._validate_command = ValidateCommand(self._legacy_adapter)
-        self._ocr_command = OcrCommand(self._legacy_adapter)
+        # Command handlers
+        self._download_command = DownloadCommand(self._download_use_case)
+        self._convert_command = ConvertCommand(self._download_use_case)
+        self._validate_command = ValidateCommand(self._download_use_case)
+        self._ocr_command = OcrCommand(self._download_use_case)
     
     @property
     def find_command(self) -> FindCommand:

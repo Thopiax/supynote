@@ -122,7 +122,7 @@ class PDFTextLayerProcessor:
         
         # Consider PDF searchable if any page has substantial text
         for text in existing_texts:
-            if len(text.strip()) > 50:  # Arbitrary threshold
+            if len(text.strip()) > 10:  # Arbitrary threshold
                 return True
         
         return False

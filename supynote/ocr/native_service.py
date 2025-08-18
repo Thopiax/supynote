@@ -19,6 +19,7 @@ class NativeSupernoteService:
     def __init__(self):
         if not SUPERNOTELIB_AVAILABLE:
             raise ImportError("supernotelib not available. Install with: uv add supernotelib")
+        self.documents_with_warnings = {}  # Track documents with text recognition warnings
     
     def extract_text_from_note(self, note_path: Path) -> List[str]:
         """
@@ -90,7 +91,11 @@ class NativeSupernoteService:
                     recogn_status = page.get_recogn_status()
                     
                     if recogn_status != 1:
-                        print(f"⚠️ Page {page_num + 1}: Text recognition not completed (status: {recogn_status})")
+                        print(f"⚠️ {note_path.name} - Page {page_num + 1}: Text recognition not completed (status: {recogn_status})")
+                        # Track this document as having warnings
+                        if str(note_path) not in self.documents_with_warnings:
+                            self.documents_with_warnings[str(note_path)] = []
+                        self.documents_with_warnings[str(note_path)].append(f"Page {page_num + 1}: status={recogn_status}")
                         page_elements.append([])
                         continue
                     
@@ -224,6 +229,33 @@ class NativeSupernoteService:
         except Exception as e:
             print(f"❌ Error processing {note_path.name}: {e}")
             return False
+    
+    def get_warning_summary(self) -> dict:
+        """Get summary of documents with text recognition warnings."""
+        return dict(self.documents_with_warnings)
+    
+    def clear_warnings(self):
+        """Clear the warnings tracking."""
+        self.documents_with_warnings.clear()
+    
+    def save_warning_report(self, output_path: Path):
+        """Save warning report to a file."""
+        if not self.documents_with_warnings:
+            return
+        
+        with open(output_path, 'w') as f:
+            f.write("OCR Text Recognition Warning Report\n")
+            f.write("=" * 50 + "\n\n")
+            f.write(f"Total documents with warnings: {len(self.documents_with_warnings)}\n\n")
+            
+            for doc_path, warnings in sorted(self.documents_with_warnings.items()):
+                filename = Path(doc_path).name
+                f.write(f"📄 {filename}\n")
+                f.write(f"   Path: {doc_path}\n")
+                f.write(f"   Warnings:\n")
+                for warning in warnings:
+                    f.write(f"   - {warning}\n")
+                f.write("\n")
     
     def _add_native_text_to_pdf(self, pdf_path: Path, page_texts: List[str], output_path: Path) -> bool:
         """Add native text as invisible layer to PDF with proper positioning and sizing."""

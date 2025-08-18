@@ -17,16 +17,18 @@ except ImportError:
 class PDFConverter:
     """Handles conversion of Supernote .note files to PDF format."""
     
-    def __init__(self, vectorize: bool = True, enable_links: bool = True):
+    def __init__(self, vectorize: bool = True, enable_links: bool = True, verbose: bool = False):
         """
         Initialize PDF converter.
         
         Args:
             vectorize: Use vector format for high-quality output (default: True)
             enable_links: Enable hyperlinks in PDF output (default: True)
+            verbose: Enable verbose output including skip messages (default: False)
         """
         self.vectorize = vectorize
         self.enable_links = enable_links
+        self.verbose = verbose
     
     def _extract_date_from_note(self, note_path: Path) -> Optional[datetime]:
         """Extract creation date from .note filename or metadata."""
@@ -137,7 +139,8 @@ class PDFConverter:
             input_mtime = input_path.stat().st_mtime
             output_mtime = output_path.stat().st_mtime
             if output_mtime > input_mtime and skip_existing:
-                print(f"⏭️ Skipping {input_path.name} (PDF is newer)")
+                if self.verbose:
+                    print(f"⏭️ Skipping {input_path.name} (PDF is newer)")
                 return True
         
         # Ensure output directory exists
@@ -151,7 +154,8 @@ class PDFConverter:
             total_pages = notebook.get_total_pages()
             
             if total_pages == 0:
-                print(f"⚠️ Warning: {input_path.name} contains no pages, skipping")
+                if self.verbose:
+                    print(f"⚠️ Warning: {input_path.name} contains no pages, skipping")
                 return False
             
             print(f"📄 Processing {total_pages} page(s)...")
@@ -243,7 +247,8 @@ class PDFConverter:
         
         print(f"📁 Converting {len(note_files)} .note file(s) with {max_workers} workers")
         if skipped_by_time > 0:
-            print(f"⏭️ Skipping {skipped_by_time} files outside time range: {time_range}")
+            if self.verbose:
+                print(f"⏭️ Skipping {skipped_by_time} files outside time range: {time_range}")
         
         # Prepare conversion tasks
         conversion_tasks = []

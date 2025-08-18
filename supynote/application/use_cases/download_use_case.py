@@ -1,4 +1,4 @@
-"""Legacy adapter for commands not yet fully migrated to DDD."""
+"""Use case for download and related operations."""
 from typing import Optional, Any, Dict
 from pathlib import Path
 import asyncio
@@ -7,8 +7,8 @@ from ...infrastructure.network.network_discovery_service import NetworkDiscovery
 from ...domain.device_management.repositories.device_repository import DeviceRepository
 
 
-class LegacyCommandAdapter:
-    """Adapts legacy commands to work within DDD architecture."""
+class DownloadUseCase:
+    """Handles download and related operations."""
     
     def __init__(
         self,
@@ -51,13 +51,24 @@ class LegacyCommandAdapter:
                         
                         if args.convert_pdf:
                             # Convert downloaded files
-                            converter = PDFConverter(vectorize=True, enable_links=True)
-                            local_dir = device.local_root / args.path.lstrip('/')
+                            converter = PDFConverter(vectorize=True, enable_links=True, verbose=getattr(args, 'verbose', False))
+                            local_dir = device.raw_dir / args.path.lstrip('/')
                             if local_dir.exists():
-                                converter.convert_directory(local_dir, workers=args.conversion_workers)
+                                converter.convert_directory(local_dir, max_workers=args.conversion_workers, time_range=args.time_range)
+                                
+                                # Handle OCR and merger processing
+                                from ...services.post_processing_service import PostProcessingService
+                                post_processor = PostProcessingService()
+                                
+                                # Use processed_output if provided
+                                output_dir = Path(args.processed_output) if getattr(args, 'processed_output', None) else None
+                                post_processor.process_downloaded_files(local_dir, device, args, args.conversion_workers, output_dir)
                 except Exception as e:
                     print(f"❌ Download failed: {e}")
                     return False
+                finally:
+                    # Clean up async session
+                    await device.close_async()
                 return True
             
             return asyncio.run(async_download())
@@ -89,7 +100,7 @@ class LegacyCommandAdapter:
             converter.convert_file(input_path, output_dir)
         elif input_path.is_dir():
             output_dir = Path(args.output) if args.output else None
-            converter.convert_directory(input_path, output_dir, args.recursive, args.workers)
+            converter.convert_directory(input_path, output_dir, recursive=args.recursive, max_workers=args.workers)
         else:
             print(f"❌ Invalid path: {input_path}")
             return False
@@ -196,7 +207,7 @@ class LegacyCommandAdapter:
         ip = self._discovery_service.discover_device()
         if ip:
             from ...domain.device_management.entities.device import Device
-            device = Device.create_discovered(ip, "8089")
+            device = Device.discover(ip, "8089")
             self._device_repository.save(device)
         
         return ip
