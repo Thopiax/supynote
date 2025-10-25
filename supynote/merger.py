@@ -419,7 +419,24 @@ class DateBasedMerger:
                         bullets = self._format_text_as_bullets(content_lines)
                         if bullets:
                             markdown_content.append(bullets)
-            
+
+            # Add PDF link if PDF exists and journals_dir is configured
+            if markdown_content:  # Only add if there's content
+                pdf_output_dir = directory / self.config.pdf_output_dir
+                pdf_file = pdf_output_dir / f"{date_str}.pdf"
+
+                if pdf_file.exists() and self.config.journals_dir:
+                    # Compute relative path from journals directory to PDF
+                    import os
+                    journals_path = Path(self.config.journals_dir)
+                    try:
+                        rel_path = os.path.relpath(pdf_file, journals_path)
+                        # Insert PDF link at the beginning
+                        markdown_content.insert(0, f"- 📄 [View PDF]({rel_path})")
+                    except ValueError:
+                        # Paths on different drives, use absolute path as fallback
+                        markdown_content.insert(0, f"- 📄 [View PDF](file://{pdf_file})")
+
             # Write markdown file
             try:
                 with open(output_file, 'w', encoding='utf-8') as f:
