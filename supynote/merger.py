@@ -183,31 +183,133 @@ class DateBasedMerger:
         print(f"🎉 Merged PDFs saved to {output_dir}")
         self._print_summary(output_dir)
     
-    def _extract_text_from_note(self, note_path: Path) -> Optional[str]:
-        """Extract text content from a .note file."""
+    def _extract_text_from_note(self, note_path: Path) -> Optional[List[str]]:
+        """Extract text content from a .note file, returning pages as separate list items."""
         if not SUPERNOTELIB_AVAILABLE:
             return None
-        
+
         try:
             notebook = sn.load_notebook(str(note_path))
             converter = sn.converter.TextConverter(notebook)
-            
-            all_text = []
+
+            all_pages = []
             total_pages = notebook.get_total_pages()
-            
+
             for page_num in range(total_pages):
                 try:
                     page_text = converter.convert(page_num)
                     if page_text:
-                        all_text.append(page_text)
+                        all_pages.append(page_text)
                 except:
                     continue
-            
-            return "\n\n---\n\n".join(all_text) if all_text else None
+
+            return all_pages if all_pages else None
         except:
             return None
-    
-    
+
+    def _detect_moments(self, pages: List[str]) -> List[Tuple[Optional[str], List[str]]]:
+        """
+        Parse pages and group them by 'moment' pattern.
+        Returns list of (moment_title, content_lines) tuples.
+        Moment title is detected by pattern: ^-?\s*[mM][eE]?\s*\.?\s*\d+
+        Matches: m. 7, M. 8, me 10, - m. 5, ME. 3, etc.
+        """
+        moments = []
+        current_moment_title = None
+        current_moment_content = []
+
+        # More permissive pattern: optional dash/bullet, m/M/me/ME, optional dot, spaces, digits
+        moment_pattern = re.compile(r'^-?\s*[mM][eE]?\s*\.?\s*\d+')
+
+        for page in pages:
+            lines = page.strip().split('\n')
+
+            # Check if first line is a moment marker
+            if lines and moment_pattern.match(lines[0].strip()):
+                # Save previous moment if exists
+                if current_moment_content:
+                    moments.append((current_moment_title, current_moment_content))
+
+                # Start new moment
+                first_line = lines[0].strip()
+                first_line = re.sub(r'^-\s*', '', first_line)  # Remove leading dash
+
+                # Check if there's a dash anywhere in the line (indicating bullet content)
+                if ' - ' in first_line or ' -' in first_line:
+                    # Find the first occurrence of ' -' (dash with space before or after)
+                    dash_idx = first_line.find(' -')
+                    if dash_idx > 0:
+                        # Split on the dash
+                        current_moment_title = first_line[:dash_idx].strip()
+                        content_after_dash = first_line[dash_idx+1:].strip()  # Skip the space and dash
+                        if content_after_dash:
+                            current_moment_content = [content_after_dash] + [line for line in lines[1:] if line.strip()]
+                        else:
+                            current_moment_content = [line for line in lines[1:] if line.strip()]
+                    else:
+                        # Shouldn't happen but fallback
+                        current_moment_title = first_line
+                        current_moment_content = [line for line in lines[1:] if line.strip()]
+                else:
+                    # No dash, keep whole line as title
+                    current_moment_title = first_line
+                    current_moment_content = [line for line in lines[1:] if line.strip()]
+            else:
+                # Continue current moment
+                current_moment_content.extend([line for line in lines if line.strip()])
+
+        # Add the last moment
+        if current_moment_content:
+            moments.append((current_moment_title, current_moment_content))
+
+        return moments
+
+    def _format_text_as_bullets(self, lines: List[str], indent_level: int = 1) -> str:
+        """
+        Convert text lines to Logseq-style bullets.
+        indent_level: number of indentation levels (1 = 4 spaces)
+
+        Handles:
+        - Lines starting with '-' or '*' as bullet points
+        - Lines starting with '↳' as sub-bullets (indented one level deeper)
+        - Lines without markers are continuations of the previous bullet/sub-bullet
+        """
+        if not lines:
+            return ""
+
+        base_indent = "    " * indent_level
+        bullets = []
+
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+
+            # Check if it's a sub-bullet marker (↳)
+            if line.startswith('↳'):
+                sub_text = line[1:].strip()
+                # Remove any leading bullet marker from sub-text
+                sub_text = re.sub(r'^[-*]\s+', '', sub_text)
+                if sub_text:
+                    bullets.append(f"{base_indent}    - {sub_text}")
+                continue
+
+            # Check if line starts with a bullet marker
+            if re.match(r'^[-*]\s+', line):
+                # Remove the bullet marker and create new bullet
+                text = re.sub(r'^[-*]\s+', '', line)
+                bullets.append(f"{base_indent}- {text}")
+            else:
+                # This is a continuation of the previous bullet
+                if bullets:
+                    bullets[-1] = f"{bullets[-1]} {line}"
+                else:
+                    # No previous bullet, create a new one
+                    bullets.append(f"{base_indent}- {line}")
+
+        return '\n'.join(bullets)
+
+
     def merge_markdown_by_date(self, directory: Path) -> None:
         """
         Create markdown files by date from .note files only.
@@ -250,30 +352,78 @@ class DateBasedMerger:
         # Create markdown for each date
         for date_str, date_files in sorted(files_by_date.items()):
             output_file = output_dir / f"{date_str}.md"
-            
+
             if output_file.exists():
                 print(f"🔄 Updating {date_str}.md...")
             else:
                 print(f"📝 Creating {date_str}.md with {len(date_files)} files...")
-            
-            markdown_content = [f"# Notes for {date_str}\n"]
-            
+
+            markdown_content = []
+
             for file_path, creation_time in date_files:
-                time_str = creation_time.strftime('%H:%M:%S')
-                markdown_content.append(f"\n## {file_path.name} ({time_str})\n")
-                
-                # Extract text from .note file
-                text_content = self._extract_text_from_note(file_path)
-                if text_content:
-                    print(f"  ✅ Extracted text from {file_path.name}")
-                    markdown_content.append(text_content)
-                else:
+                # Extract pages from .note file
+                pages = self._extract_text_from_note(file_path)
+
+                if not pages:
                     print(f"  ⏭️ No text in {file_path.name}")
-                    markdown_content.append(f"*No text content available for {file_path.name}*")
+                    continue
+
+                print(f"  ✅ Extracted text from {file_path.name}")
+
+                # Process each page as its own section
+                moment_pattern = re.compile(r'^-?\s*[mM][oOeE]?\s*\.?\s*\d+')
+
+                for page_text in pages:
+                    lines = page_text.strip().split('\n')
+                    if not lines or not any(line.strip() for line in lines):
+                        continue
+
+                    first_line = lines[0].strip()
+                    first_line = re.sub(r'^-\s*', '', first_line)  # Remove leading dash
+
+                    # Check if first line is a moment marker
+                    if moment_pattern.match(first_line):
+                        # Check if there's a dash in the line (indicating bullet content)
+                        if ' - ' in first_line or ' -' in first_line:
+                            dash_idx = first_line.find(' -')
+                            if dash_idx > 0:
+                                # Split on the dash
+                                moment_title = first_line[:dash_idx].strip()
+                                content_after_dash = first_line[dash_idx+1:].strip()
+
+                                # Add moment heading
+                                markdown_content.append(f"- ## {moment_title}")
+
+                                # Format content starting with text after dash
+                                content_lines = [content_after_dash] + [line for line in lines[1:] if line.strip()]
+                                bullets = self._format_text_as_bullets(content_lines)
+                                if bullets:
+                                    markdown_content.append(bullets)
+                            else:
+                                # Shouldn't happen but fallback
+                                markdown_content.append(f"- ## {first_line}")
+                                content_lines = [line for line in lines[1:] if line.strip()]
+                                bullets = self._format_text_as_bullets(content_lines)
+                                if bullets:
+                                    markdown_content.append(bullets)
+                        else:
+                            # No dash, whole first line is title
+                            markdown_content.append(f"- ## {first_line}")
+                            content_lines = [line for line in lines[1:] if line.strip()]
+                            bullets = self._format_text_as_bullets(content_lines)
+                            if bullets:
+                                markdown_content.append(bullets)
+                    else:
+                        # No moment marker, just format all lines as bullets
+                        content_lines = [line for line in lines if line.strip()]
+                        bullets = self._format_text_as_bullets(content_lines)
+                        if bullets:
+                            markdown_content.append(bullets)
             
             # Write markdown file
             try:
                 with open(output_file, 'w', encoding='utf-8') as f:
+                    # Join with single newline between sections
                     f.write('\n'.join(markdown_content))
                 print(f"✅ Created {output_file.name}")
                 
