@@ -1,4 +1,5 @@
 """Shared post-processing service for OCR and merging operations."""
+import os
 from pathlib import Path
 from typing import Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -100,11 +101,15 @@ class PostProcessingService:
             pdf_output = str(device.processed_dir / "pdfs")
             markdown_output = str(device.processed_dir / "markdowns")
         
+        # Get journals directory from env var or args, with fallback to None
+        journals_dir_str = os.environ.get("SUPYNOTE_JOURNALS_DIR") or getattr(args, 'journals_dir', None)
+        journals_dir = Path(journals_dir_str) if journals_dir_str else None
+
         merge_config = MergeConfig(
             pdf_output_dir=pdf_output,
             markdown_output_dir=markdown_output,
             time_range=getattr(args, 'time_range', 'all'),
-            journals_dir=Path("/Users/rafa/Developer/saperene/journals")
+            journals_dir=journals_dir
         )
         merger = DateBasedMerger(merge_config)
         merger.merge_all_by_date(local_dir)

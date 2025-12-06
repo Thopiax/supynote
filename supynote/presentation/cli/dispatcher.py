@@ -11,7 +11,7 @@ class CommandDispatcher:
     # All commands now handled through DDD architecture
     DDD_COMMANDS = {
         'find', 'browse', 'info', 'list',
-        'download', 'convert', 'validate', 'ocr'
+        'download', 'convert', 'validate', 'ocr', 'merge'
     }
     
     def __init__(self):
@@ -41,7 +41,8 @@ class CommandDispatcher:
             'download': self._container.download_command,
             'convert': self._container.convert_command,
             'validate': self._container.validate_command,
-            'ocr': self._container.ocr_command
+            'ocr': self._container.ocr_command,
+            'merge': self._container.merge_command
         }
         
         handler = command_map.get(command)

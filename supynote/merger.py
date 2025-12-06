@@ -27,6 +27,7 @@ class MergeConfig:
     time_range: str = "all"  # week, 2weeks, month, all
     merge_by_date: bool = True
     journals_dir: Optional[Path] = None  # Optional directory to copy markdown files to
+    assets_dir: Optional[Path] = None  # Optional directory to copy PDFs to (e.g., Logseq assets)
 
 
 class DateBasedMerger:
@@ -420,22 +421,33 @@ class DateBasedMerger:
                         if bullets:
                             markdown_content.append(bullets)
 
-            # Add PDF link if PDF exists and journals_dir is configured
+            # Add PDF link if PDF exists
             if markdown_content:  # Only add if there's content
                 pdf_output_dir = directory / self.config.pdf_output_dir
                 pdf_file = pdf_output_dir / f"{date_str}.pdf"
 
-                if pdf_file.exists() and self.config.journals_dir:
-                    # Compute relative path from journals directory to PDF
-                    import os
-                    journals_path = Path(self.config.journals_dir)
-                    try:
-                        rel_path = os.path.relpath(pdf_file, journals_path)
-                        # Insert PDF link at the beginning
-                        markdown_content.insert(0, f"- 📄 [View PDF]({rel_path})")
-                    except ValueError:
-                        # Paths on different drives, use absolute path as fallback
-                        markdown_content.insert(0, f"- 📄 [View PDF](file://{pdf_file})")
+                if pdf_file.exists():
+                    # Copy PDF to assets directory if configured
+                    if self.config.assets_dir:
+                        import shutil
+                        assets_path = Path(self.config.assets_dir)
+                        assets_path.mkdir(parents=True, exist_ok=True)
+                        assets_pdf = assets_path / f"{date_str}.pdf"
+                        shutil.copy2(pdf_file, assets_pdf)
+                        print(f"  📎 Copied PDF to assets: {assets_pdf.name}")
+
+                        # Use assets-relative path (works in Logseq)
+                        markdown_content.insert(0, f"- 📄 [View PDF](../assets/{date_str}.pdf)")
+                    elif self.config.journals_dir:
+                        # Fallback: compute relative path from journals directory to PDF
+                        import os
+                        journals_path = Path(self.config.journals_dir)
+                        try:
+                            rel_path = os.path.relpath(pdf_file, journals_path)
+                            markdown_content.insert(0, f"- 📄 [View PDF]({rel_path})")
+                        except ValueError:
+                            # Paths on different drives, use absolute path as fallback
+                            markdown_content.insert(0, f"- 📄 [View PDF](file://{pdf_file})")
 
             # Write markdown file
             try:

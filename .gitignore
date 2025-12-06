@@ -128,6 +128,10 @@ ENV/
 env.bak/
 venv.bak/
 
+# Personal configuration
+.claude/settings.local.json
+.claude/*.local.json
+
 # Spyder project settings
 .spyderproject
 .spyproject
@@ -173,3 +177,11 @@ ehthumbs.db
 Desktop.ini
 
 data/
+
+*.swp
+*.plist
+
+# Examples - local configurations
+examples/automation/.env
+examples/automation/*.plist
+examples/**/*.swp

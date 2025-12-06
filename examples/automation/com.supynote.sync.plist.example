@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Unique identifier for this agent -->
+    <key>Label</key>
+    <string>com.supynote.sync</string>
+
+    <!-- Path to the sync script -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>/PATH/TO/supynote-cli/examples/automation/sync_from_server.sh</string>
+    </array>
+
+    <!-- Run every hour (3600 seconds) -->
+    <key>StartInterval</key>
+    <integer>3600</integer>
+
+    <!-- Also run when the agent is loaded (on login) -->
+    <key>RunAtLoad</key>
+    <true/>
+
+    <!-- Keep the job running (restart if it fails) -->
+    <key>KeepAlive</key>
+    <false/>
+
+    <!-- Standard output log -->
+    <key>StandardOutPath</key>
+    <string>/Users/YOUR_USERNAME/Library/Logs/supynote-sync.log</string>
+
+    <!-- Error output log -->
+    <key>StandardErrorPath</key>
+    <string>/Users/YOUR_USERNAME/Library/Logs/supynote-sync-error.log</string>
+
+    <!-- Working directory -->
+    <key>WorkingDirectory</key>
+    <string>/PATH/TO/supynote-cli/examples/automation</string>
+</dict>
+</plist>

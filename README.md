@@ -2,6 +2,16 @@
 
 A simple, clean CLI tool to interact with your Supernote device.
 
+## Requirements
+
+- Python 3.8.1+
+- Supernote device connected to same local network
+- Device must have "Export via LAN" enabled (Settings → System → Export via LAN)
+
+### Optional Features
+- **OCR**: Requires additional dependencies (transformers, torch) - see Installation
+- **Apple Silicon**: OCR automatically uses MPS acceleration on M1/M2/M3/M4 Macs
+
 ## Features
 
 - 🔍 **Auto-discovery**: Automatically find your Supernote on the network
@@ -13,10 +23,29 @@ A simple, clean CLI tool to interact with your Supernote device.
 
 ## Installation
 
+### Basic Installation
+
 ```bash
 # Clone and install
-git clone <repo-url>
+git clone https://github.com/r4tb/supynote-cli.git
 cd supynote-cli
+pip install -e .
+```
+
+### With OCR Features
+
+```bash
+# Install with optional OCR dependencies
+pip install -e .[ocr]
+
+# Or if already installed, add OCR support
+pip install transformers torch torchvision pymupdf pillow numpy opencv-python
+```
+
+### Using uv (Recommended)
+
+```bash
+uv sync  # Installs all dependencies
 pip install -e .
 ```
 
@@ -84,6 +113,24 @@ Show device connection information.
 - `--port PORT`: Device port (default: 8089)
 - `--output DIR`: Local output directory for downloads
 
+## Environment Variables
+
+Configure supynote-cli behavior with these environment variables:
+
+- `SUPYNOTE_JOURNALS_DIR`: Default directory for markdown journal exports (used by `merge` command)
+- `SUPYNOTE_IP`: Default device IP (alternative to `--ip` flag)
+- `SUPYNOTE_OUTPUT_DIR`: Default output directory (alternative to `--output` flag)
+
+Example `.env` file:
+```bash
+SUPYNOTE_JOURNALS_DIR=$HOME/Documents/journals
+SUPYNOTE_IP=192.168.1.100
+```
+
+Load with: `export $(cat .env | xargs)`
+
+See `examples/automation/.env.example` for more configuration options.
+
 ## Examples
 
 ```bash
@@ -108,3 +155,50 @@ supynote convert Note/ --output ~/my-pdfs
 # Convert single file with specific output name
 supynote convert my-note.note --output my-document.pdf
 ```
+
+## Troubleshooting
+
+### Device Not Found
+- Ensure device is on same network as computer
+- Try manually specifying IP: `supynote --ip YOUR_IP list`
+- Some networks block device discovery - use `--ip` flag with your device's IP address
+
+### OCR Not Working
+- Install OCR dependencies: `pip install -e .[ocr]`
+- First run downloads ML models (~500MB) - may take time
+- Requires internet connection for initial model download
+- On Apple Silicon, ensure MPS is available (macOS 12.3+)
+
+### Slow Performance
+- Increase workers: `supynote download --workers 30`
+- Use async mode (default in v1.0+)
+- OCR is CPU/GPU intensive - fewer workers may help on older machines
+- Check network connection quality
+
+### Permission Errors
+- Ensure output directory is writable
+- On macOS, you may need to grant Terminal full disk access
+- Check firewall settings aren't blocking network discovery
+
+For more help, see [GitHub Issues](https://github.com/r4tb/supynote-cli/issues)
+
+## License
+
+MIT License - see [LICENSE](LICENSE) file for details.
+
+## Contributing
+
+Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+Steps:
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes with tests
+4. Submit a pull request
+
+## Acknowledgments
+
+- **Supernote Team**: For creating excellent e-ink tablets that inspire tools like this
+- **[supernotelib](https://github.com/jya-dev/supernotelib)**: Unofficial library for .note file conversion - the foundation of PDF conversion in this tool
+- **Claude Code**: This project was built with significant assistance from Claude Code, which handled much of the heavy lifting in development and refactoring
+- **TrOCR** (Microsoft) and **LLaVA**: Powering the OCR capabilities for handwritten text recognition

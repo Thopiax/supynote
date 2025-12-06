@@ -165,27 +165,27 @@ class DownloadUseCase:
     def execute_ocr(self, args: Any) -> bool:
         """Execute OCR command using legacy code."""
         input_path = Path(args.input)
-        
+
         if not input_path.exists():
             print(f"❌ Path does not exist: {input_path}")
             return False
-        
+
         if args.engine == "native":
             from ...ocr.native_service import NativeSupernoteService
             service = NativeSupernoteService()
-            
+
             if args.batch and input_path.is_dir():
                 # Batch process directory
                 note_files = list(input_path.glob("*.note"))
                 print(f"🔍 Found {len(note_files)} .note files to process")
-                
+
                 for note_file in note_files:
                     output_file = note_file.with_suffix('.pdf')
                     if args.output:
                         output_dir = Path(args.output)
                         output_dir.mkdir(exist_ok=True)
                         output_file = output_dir / output_file.name
-                    
+
                     print(f"🔍 Processing {note_file.name}...")
                     service.convert_note_to_searchable_pdf(note_file, output_file)
             else:
@@ -195,7 +195,44 @@ class DownloadUseCase:
         else:
             print(f"❌ OCR engine '{args.engine}' not yet implemented in DDD")
             return False
-        
+
+        return True
+
+    def execute_merge(self, args: Any) -> bool:
+        """Execute merge command using DateBasedMerger."""
+        from ...merger import DateBasedMerger, MergeConfig
+        import os
+
+        directory = Path(args.directory)
+        if not directory.exists():
+            print(f"❌ Directory does not exist: {directory}")
+            return False
+
+        # Get journals directory from env var or args
+        journals_dir_str = os.environ.get("SUPYNOTE_JOURNALS_DIR") or getattr(args, 'journals_dir', None)
+        journals_dir = Path(journals_dir_str) if journals_dir_str else None
+
+        # Get assets directory from env var if set
+        assets_dir_str = os.environ.get("SUPYNOTE_ASSETS_DIR")
+        assets_dir = Path(assets_dir_str) if assets_dir_str else None
+
+        merge_config = MergeConfig(
+            pdf_output_dir=args.pdf_output,
+            markdown_output_dir=args.markdown_output,
+            time_range=args.time_range,
+            journals_dir=journals_dir,
+            assets_dir=assets_dir
+        )
+
+        merger = DateBasedMerger(merge_config)
+
+        if args.pdf_only:
+            merger.merge_pdfs_by_date(directory)
+        elif args.markdown_only:
+            merger.merge_markdown_by_date(directory)
+        else:
+            merger.merge_all_by_date(directory)
+
         return True
     
     def _get_device_ip(self, args: Any) -> Optional[str]:

@@ -127,7 +127,11 @@ Examples:
     merge_parser.add_argument("--time-range", choices=["week", "2weeks", "month", "all"], default="all", help="Time range filter (default: all)")
     merge_parser.add_argument("--pdf-only", action="store_true", help="Only merge PDFs, skip markdown creation")
     merge_parser.add_argument("--markdown-only", action="store_true", help="Only create markdown files, skip PDF merging")
-    merge_parser.add_argument("--journals-dir", default="/Users/rafa/Developer/saperene/journals", help="Directory to copy markdown files to (default: /Users/rafa/Developer/saperene/journals)")
+    merge_parser.add_argument(
+        "--journals-dir",
+        default=os.environ.get("SUPYNOTE_JOURNALS_DIR"),
+        help="Directory to copy markdown files to (set via SUPYNOTE_JOURNALS_DIR env var or this argument)"
+    )
     
     args = parser.parse_args()
     

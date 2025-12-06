@@ -15,7 +15,8 @@ from .commands.commands import (
     DownloadCommand,
     ConvertCommand,
     ValidateCommand,
-    OcrCommand
+    OcrCommand,
+    MergeCommand
 )
 
 
@@ -65,6 +66,7 @@ class DIContainer:
         self._convert_command = ConvertCommand(self._download_use_case)
         self._validate_command = ValidateCommand(self._download_use_case)
         self._ocr_command = OcrCommand(self._download_use_case)
+        self._merge_command = MergeCommand(self._download_use_case)
     
     @property
     def find_command(self) -> FindCommand:
@@ -105,3 +107,8 @@ class DIContainer:
     def ocr_command(self) -> OcrCommand:
         """Get the OCR command handler."""
         return self._ocr_command
+
+    @property
+    def merge_command(self) -> MergeCommand:
+        """Get the merge command handler."""
+        return self._merge_command
