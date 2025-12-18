@@ -41,13 +41,11 @@ jobs:
         pip install -e .
 
     - name: Run tests
-      run: pytest tests/ -v --tb=short
+      run: uv run pytest tests/ -v --tb=short
 
     - name: Check code formatting (Python 3.11 only)
       if: matrix.python-version == '3.11'
-      run: |
-        pip install black
-        black --check supynote/ || echo "Code formatting check skipped"
+      run: uv run black --check supynote/ || echo "Code formatting check skipped"
 
   lint:
     runs-on: ubuntu-latest
