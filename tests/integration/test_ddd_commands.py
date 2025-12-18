@@ -16,12 +16,16 @@ class TestFindCommand(unittest.TestCase):
         """Set up test fixtures."""
         self.container = DIContainer()
     
-    @patch('supynote.infrastructure.network.network_discovery_service.NetworkDiscoveryService.discover_device')
+    @patch('supynote.infrastructure.repositories.memory_device_repository.InMemoryDeviceRepository.find_all')
+    @patch('supynote.infrastructure.network.network_discovery_service.NetworkDiscoveryService.scan_network')
     @patch('webbrowser.open')
-    def test_find_command_with_device_found(self, mock_browser, mock_discover):
+    def test_find_command_with_device_found(self, mock_browser, mock_scan, mock_find_all):
         """Test find command when device is found."""
         # Arrange
-        mock_discover.return_value = "192.168.1.42"
+        from supynote.domain.device_management.value_objects.device_connection import DeviceConnection
+        mock_connection = DeviceConnection.from_strings("192.168.1.42", "8089")
+        mock_find_all.return_value = []
+        mock_scan.return_value = [mock_connection]
         args = Namespace(ip=None, port="8089", open=True)
         
         # Act
@@ -29,16 +33,18 @@ class TestFindCommand(unittest.TestCase):
             self.container.find_command.execute(args)
         
         # Assert
-        mock_discover.assert_called_once()
+        mock_scan.assert_called_once()
         mock_browser.assert_called_once_with("http://192.168.1.42:8089")
-        mock_print.assert_any_call("🔍 Searching for Supernote device on network...")
+        mock_print.assert_any_call("🔍 Scanning network for Supernote devices...")
         mock_print.assert_any_call("✅ Found Supernote device at 192.168.1.42")
     
-    @patch('supynote.infrastructure.network.network_discovery_service.NetworkDiscoveryService.discover_device')
-    def test_find_command_no_device(self, mock_discover):
+    @patch('supynote.infrastructure.repositories.memory_device_repository.InMemoryDeviceRepository.find_all')
+    @patch('supynote.infrastructure.network.network_discovery_service.NetworkDiscoveryService.scan_network')
+    def test_find_command_no_device(self, mock_scan, mock_find_all):
         """Test find command when no device is found."""
         # Arrange
-        mock_discover.return_value = None
+        mock_find_all.return_value = []
+        mock_scan.return_value = []
         args = Namespace(ip=None, port="8089", open=False)
         
         # Act
@@ -46,7 +52,7 @@ class TestFindCommand(unittest.TestCase):
             self.container.find_command.execute(args)
         
         # Assert
-        mock_discover.assert_called_once()
+        mock_scan.assert_called_once()
         mock_print.assert_any_call("❌ No Supernote device found on network")
     
     def test_find_command_with_provided_ip(self):

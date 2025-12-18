@@ -37,34 +37,39 @@ class TestFindDeviceUseCase(unittest.TestCase):
     def test_find_with_discovery(self):
         """Test finding device through network discovery."""
         # Arrange
+        from supynote.domain.device_management.value_objects.device_connection import DeviceConnection
+        mock_connection = DeviceConnection.from_strings("192.168.1.42", "8089")
+
+        self.mock_repo.find_all.return_value = []
         self.mock_repo.find_by_connection.return_value = None
-        self.mock_discovery.discover_device.return_value = "192.168.1.42"
+        self.mock_discovery.scan_network.return_value = [mock_connection]
         request = FindDeviceRequest(open_in_browser=False)
-        
+
         # Act
         response = self.use_case.execute(request)
-        
+
         # Assert
         self.assertTrue(response.found)
         self.assertEqual(response.ip, "192.168.1.42")
         self.assertEqual(response.source, "network")
-        self.mock_discovery.discover_device.assert_called_once()
+        self.mock_discovery.scan_network.assert_called_once()
         self.mock_repo.save.assert_called_once()
     
     def test_find_no_device(self):
         """Test when no device is found."""
         # Arrange
+        self.mock_repo.find_all.return_value = []
         self.mock_repo.find_by_connection.return_value = None
-        self.mock_discovery.discover_device.return_value = None
+        self.mock_discovery.scan_network.return_value = []
         request = FindDeviceRequest(open_in_browser=False)
-        
+
         # Act
         response = self.use_case.execute(request)
-        
+
         # Assert
         self.assertFalse(response.found)
         self.assertIsNone(response.ip)
-        self.mock_discovery.discover_device.assert_called_once()
+        self.mock_discovery.scan_network.assert_called_once()
 
 
 class TestBrowseDeviceUseCase(unittest.TestCase):
