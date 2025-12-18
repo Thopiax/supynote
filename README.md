@@ -100,6 +100,22 @@ supynote browse
 supynote info
 ```
 
+### Device Setup
+
+Before using supynote, ensure your Supernote device is ready:
+
+1. On your Supernote: Swipe down from the top to open the menu
+2. Activate "Browse & Access" (middle top icon)
+3. Ensure your computer is connected to the same network
+4. Only one Supernote device should have "Browse & Access" active
+
+Now you can run `supynote find` to locate your device.
+
+### Tips
+
+- **Use default note names**: Supernote's automatic timestamp naming (YYYYMMDD_HHMMSS) allows notes to be grouped by day, creating a journal-like structure
+- **Markdown extraction**: Structure your notes with specific patterns for better markdown output (see Markdown Integration)
+
 ## Commands
 
 ### `supynote find`
@@ -175,6 +191,47 @@ supynote convert Note/ --output ~/my-pdfs
 # Convert single file with specific output name
 supynote convert my-note.note --output my-document.pdf
 ```
+
+## Markdown Integration
+
+Supynote can extract text from your .note files and organize them into markdown format for daily journaling workflows. The extraction recognizes specific patterns you can optionally use while writing:
+
+### Moment Markers (Section Headers)
+
+As a personal preference, you can start pages with "moment markers" to create section headings:
+- Pattern: `m. 1`, `M. 2`, `me 3` (case insensitive, with or without dot)
+- Can be preceded by `-` (e.g., `- m. 5`)
+
+**Example on Supernote:**
+```
+m. 7 - Morning thoughts about the project
+```
+
+**Becomes in markdown:**
+```markdown
+- ## m. 7
+    - Morning thoughts about the project
+```
+
+This is entirely optional - use it if it fits your note-taking style.
+
+### Bullet Points
+
+Lines starting with `-` or `*` are converted to indented bullet points.
+
+### Sub-bullets
+
+Lines starting with `↳` become nested sub-bullets (indented one level deeper).
+
+### Daily Organization
+
+Using the `merge` command with timestamp-named files (YYYYMMDD_HHMMSS):
+- Groups all notes from the same day
+- Creates one markdown file per day (e.g., `2024-01-15.md`)
+- Orders moments chronologically within each day
+- Links to the corresponding merged PDF
+
+This creates a date-based journal structure ideal for markdown-based note-taking tools.
 
 ## Troubleshooting
 
