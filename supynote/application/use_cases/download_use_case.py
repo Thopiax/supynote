@@ -52,7 +52,7 @@ class DownloadUseCase:
                         if args.convert_pdf:
                             # Convert downloaded files
                             converter = PDFConverter(vectorize=True, enable_links=True, verbose=getattr(args, 'verbose', False))
-                            local_dir = device.raw_dir / args.path.lstrip('/')
+                            local_dir = device.cache_dir / args.path.lstrip('/')
                             if local_dir.exists():
                                 converter.convert_directory(local_dir, max_workers=args.conversion_workers, time_range=args.time_range)
                                 
