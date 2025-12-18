@@ -23,30 +23,32 @@ A simple, clean CLI tool to interact with your Supernote device.
 
 ## Installation
 
-### Basic Installation
+### From PyPI (Recommended)
+
+```bash
+# Basic installation
+pip install supynote
+
+# With OCR features
+pip install supynote[ocr]
+```
+
+### From Source (Development)
 
 ```bash
 # Clone and install
-git clone https://github.com/r4tb/supynote-cli.git
-cd supynote-cli
+git clone https://github.com/thopiax/supynote.git
+cd supynote
 pip install -e .
-```
 
-### With OCR Features
-
-```bash
-# Install with optional OCR dependencies
+# With OCR features
 pip install -e .[ocr]
-
-# Or if already installed, add OCR support
-pip install transformers torch torchvision pymupdf pillow numpy opencv-python
 ```
 
-### Using uv (Recommended)
+### Using uv (For Development)
 
 ```bash
-uv sync  # Installs all dependencies
-pip install -e .
+uv sync  # Installs all dependencies including dev tools
 ```
 
 ## Quick Start
@@ -180,7 +182,7 @@ supynote convert my-note.note --output my-document.pdf
 - On macOS, you may need to grant Terminal full disk access
 - Check firewall settings aren't blocking network discovery
 
-For more help, see [GitHub Issues](https://github.com/r4tb/supynote-cli/issues)
+For more help, see [GitHub Issues](https://github.com/thopiax/supynote/issues)
 
 ## License
 
