@@ -10,7 +10,7 @@
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
-        <string>/PATH/TO/supynote-cli/examples/automation/sync_from_server.sh</string>
+        <string>/PATH/TO/supynote/examples/automation/sync_from_server.sh</string>
     </array>
 
     <!-- Run every hour (3600 seconds) -->
@@ -36,5 +36,13 @@
     <!-- Working directory -->
     <key>WorkingDirectory</key>
     <string>/PATH/TO/supynote-cli/examples/automation</string>
+
+    <!-- Environment variables (needed for uv/python commands) -->
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <!-- If using pyenv, add: /Users/YOUR_USERNAME/.pyenv/shims at the beginning -->
+    </dict>
 </dict>
 </plist>

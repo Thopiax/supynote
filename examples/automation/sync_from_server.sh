@@ -1,6 +1,9 @@
 #!/bin/bash
 set -euo pipefail
 
+# Set PATH for launchd environment (includes common locations for uv/python/pip)
+export PATH="$HOME/.local/bin:$HOME/.pyenv/shims:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+
 # Sync Supernote from Remote Server Script
 # Usage: ./sync_from_server.sh
 # Requires: .env file with SUPYNOTE_REMOTE_SERVER and SUPYNOTE_USER_EMAIL configured
