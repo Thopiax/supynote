@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.8.1"
 license = {text = "MIT"}
 authors = [
-    {name = "Rafael Ballestiero", email = "rballestiero@gmail.com"}
+    {name = "Rafael Ballestiero", email = "rafaba@hey.com"}
 ]
 keywords = ["supernote", "e-ink", "note-taking", "pdf", "cli", "ocr", "markdown"]
 classifiers = [
