@@ -25,6 +25,16 @@ jobs:
     - name: Install uv
       run: pip install uv
 
+    - name: Install system dependencies
+      run: |
+        if [ "$RUNNER_OS" == "Linux" ]; then
+          sudo apt-get update
+          sudo apt-get install -y libcairo2-dev pkg-config python3-dev
+        elif [ "$RUNNER_OS" == "macOS" ]; then
+          brew install cairo pkg-config
+        fi
+      shell: bash
+
     - name: Install dependencies
       run: |
         uv sync

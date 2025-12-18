@@ -8,6 +8,24 @@ A simple, clean CLI tool to interact with your Supernote device.
 - Supernote device connected to same local network
 - Device must have "Export via LAN" enabled (Settings → System → Export via LAN)
 
+### System Dependencies (for PDF conversion)
+
+PDF conversion requires the Cairo graphics library. Install it before installing supynote:
+
+**macOS:**
+```bash
+brew install cairo pkg-config
+```
+
+**Ubuntu/Debian:**
+```bash
+sudo apt-get update
+sudo apt-get install -y libcairo2-dev pkg-config python3-dev
+```
+
+**Windows:**
+No additional dependencies needed (pre-built wheels available)
+
 ### Optional Features
 - **OCR**: Requires additional dependencies (transformers, torch) - see Installation
 - **Apple Silicon**: OCR automatically uses MPS acceleration on M1/M2/M3/M4 Macs
@@ -159,6 +177,13 @@ supynote convert my-note.note --output my-document.pdf
 ```
 
 ## Troubleshooting
+
+### PDF Conversion Errors
+- **Error: "cairo not found"** or **"pycairo build failed"**
+  - Install Cairo system dependencies (see System Dependencies section above)
+  - macOS: `brew install cairo pkg-config`
+  - Linux: `sudo apt-get install libcairo2-dev pkg-config python3-dev`
+- After installing Cairo, reinstall supynote: `pip install --force-reinstall supynote`
 
 ### Device Not Found
 - Ensure device is on same network as computer
