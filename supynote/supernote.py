@@ -28,35 +28,42 @@ class Supernote:
         self.verbose = verbose
         
         # Create directory structure
-        self.raw_dir = self.local_root / "raw"
-        self.processed_dir = self.local_root / "processed"
-        
+        # Cache for intermediate .note files (temp storage)
+        self.cache_dir = Path.home() / ".cache" / "supynote"
+        # User-facing output directories
+        self.pdfs_dir = self.local_root / "pdfs"    # PDF outputs
+        self.markdowns_dir = self.local_root / "markdowns"  # Markdown outputs
+
         # Ensure directories exist
-        self.raw_dir.mkdir(parents=True, exist_ok=True)
-        self.processed_dir.mkdir(parents=True, exist_ok=True)
-        (self.processed_dir / "pdfs").mkdir(exist_ok=True)
-        (self.processed_dir / "markdowns").mkdir(exist_ok=True)
+        self.cache_dir.mkdir(parents=True, exist_ok=True)
+        self.pdfs_dir.mkdir(parents=True, exist_ok=True)
+        self.markdowns_dir.mkdir(parents=True, exist_ok=True)
         
         # Async session (created when needed)
         self._session: Optional['aiohttp.ClientSession'] = None
     
     def _should_include_file(self, file_info: Dict, time_range: str) -> bool:
-        """Check if file should be included based on time range filter."""
+        """Check if file should be included based on time range filter using modification time."""
         if time_range == "all":
             return True
-            
-        # Get file date from the file info
-        file_date_str = file_info.get("date", "")
+
+        # Try to get modification time from multiple possible field names
+        file_date_str = None
+        for field_name in ["mtime", "modifiedTime", "lastModified", "modified", "date"]:
+            if field_name in file_info and file_info[field_name]:
+                file_date_str = file_info[field_name]
+                break
+
         if not file_date_str:
             # If no date info, include the file by default
             return True
-            
+
         try:
             # Parse the date string (format might vary, adjust as needed)
             # Assuming format like "2024-01-15 10:30" or similar
             file_date = datetime.strptime(file_date_str.split()[0], "%Y-%m-%d")
             now = datetime.now()
-            
+
             # Calculate the cutoff date based on time range
             if time_range == "week":
                 cutoff = now - timedelta(days=7)
@@ -66,9 +73,9 @@ class Supernote:
                 cutoff = now - timedelta(days=30)
             else:
                 return True  # Unknown range, include by default
-                
+
             return file_date >= cutoff
-            
+
         except (ValueError, IndexError) as e:
             # If we can't parse the date, include the file by default
             print(f"⚠️ Could not parse date '{file_date_str}': {e}")
@@ -153,7 +160,7 @@ class Supernote:
     def download_file(self, remote_path: str, local_path: Optional[Path] = None, force: bool = False, check_size: bool = True, remote_file_info: Optional[Dict] = None) -> bool:
         """Download a single file from the device with skip logic."""
         if not local_path:
-            local_path = self.raw_dir / remote_path.lstrip('/')
+            local_path = self.cache_dir / remote_path.lstrip('/')
         
         # Check if we should skip this file
         if remote_file_info and self._should_skip_file(remote_file_info, local_path, force, check_size):
@@ -379,7 +386,7 @@ class Supernote:
     async def _download_file_async(self, remote_path: str, local_path: Optional[Path] = None, semaphore: Optional[asyncio.Semaphore] = None, force: bool = False, check_size: bool = True, remote_file_info: Optional[Dict] = None) -> bool:
         """Async version of download_file with semaphore support."""
         if not local_path:
-            local_path = self.raw_dir / remote_path.lstrip('/')
+            local_path = self.cache_dir / remote_path.lstrip('/')
         
         # Check if we should skip this file
         if remote_file_info and self._should_skip_file(remote_file_info, local_path, force, check_size):
@@ -452,7 +459,7 @@ class Supernote:
         Returns:
             True if conversion successful, False otherwise
         """
-        local_path = self.raw_dir / file_or_dir.lstrip('/')
+        local_path = self.cache_dir / file_or_dir.lstrip('/')
         
         if not local_path.exists():
             print(f"❌ Local file not found: {local_path}")

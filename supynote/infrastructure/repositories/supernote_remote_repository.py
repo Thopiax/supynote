@@ -33,7 +33,8 @@ class SupernoteRemoteRepository(RemoteNoteRepository):
                 
                 # Parse dates from item info
                 created_at = self._parse_date(item.get("date"))
-                modified_at = self._parse_date(item.get("date"))
+                # Try multiple possible field names for modification time
+                modified_at = self._parse_modified_date(item)
                 
                 # Get file size
                 size = item.get("size", 0)
@@ -182,7 +183,7 @@ class SupernoteRemoteRepository(RemoteNoteRepository):
         """Parse date string from device response."""
         if not date_str:
             return datetime.now()
-        
+
         try:
             # Try different date formats
             for fmt in ["%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d"]:
@@ -190,12 +191,22 @@ class SupernoteRemoteRepository(RemoteNoteRepository):
                     return datetime.strptime(date_str.split()[0] if ' ' in date_str else date_str, fmt.split()[0])
                 except ValueError:
                     continue
-            
+
             # If all formats fail, return current time
             return datetime.now()
         except Exception:
             return datetime.now()
-    
+
+    def _parse_modified_date(self, item: Dict[str, Any]) -> datetime:
+        """Parse modification date from device metadata, trying multiple field names."""
+        # Try common modification time field names in order of preference
+        for field_name in ["mtime", "modifiedTime", "lastModified", "modified", "date"]:
+            if field_name in item and item[field_name]:
+                return self._parse_date(item[field_name])
+
+        # Fallback to creation date if no modification time found
+        return self._parse_date(item.get("date"))
+
     def _generate_checksum(self, item: Dict[str, Any]) -> str:
         """Generate a simple checksum from file metadata."""
         # Create a hash based on file name, size, and date

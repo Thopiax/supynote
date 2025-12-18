@@ -93,14 +93,15 @@ class PostProcessingService:
         print("🚀 Starting merger processing...")
         from ..merger import DateBasedMerger, MergeConfig
         
-        # Use output_dir if provided, otherwise use device's processed dir (cache location)
+        # Use output_dir if provided, otherwise use device's output directories
         if output_dir:
             pdf_output = str(output_dir / "pdfs")
             markdown_output = str(output_dir / "markdowns")
         else:
-            pdf_output = str(device.processed_dir / "pdfs")
-            markdown_output = str(device.processed_dir / "markdowns")
-        
+            # Use new flat directory structure
+            pdf_output = str(device.pdfs_dir)
+            markdown_output = str(device.markdowns_dir)
+
         # Get journals directory from env var or args, with fallback to None
         journals_dir_str = os.environ.get("SUPYNOTE_JOURNALS_DIR") or getattr(args, 'journals_dir', None)
         journals_dir = Path(journals_dir_str) if journals_dir_str else None
@@ -109,6 +110,7 @@ class PostProcessingService:
             pdf_output_dir=pdf_output,
             markdown_output_dir=markdown_output,
             time_range=getattr(args, 'time_range', 'all'),
+            merge_only_timestamped=getattr(args, 'merge_only_timestamped', True),  # Default to True
             journals_dir=journals_dir
         )
         merger = DateBasedMerger(merge_config)

@@ -84,6 +84,7 @@ Examples:
     download_parser.add_argument("--time-range", choices=["week", "2weeks", "month", "all"], default="all", help="Download files from time range (default: all)")
     download_parser.add_argument("--merge-by-date", dest="merge_by_date", action="store_true", default=True, help="Merge PDFs by date, naming files as YYYY-MM-DD.pdf (default: enabled)")
     download_parser.add_argument("--no-merge", dest="merge_by_date", action="store_false", help="Skip merging PDFs by date")
+    download_parser.add_argument("--merge-all", dest="merge_only_timestamped", action="store_false", default=True, help="Merge ALL files by date, not just timestamped ones (default: merge only timestamped)")
     download_parser.add_argument("--processed-output", help="Directory for final processed files (merged PDFs and markdowns)")
     
     # Convert command
@@ -122,11 +123,12 @@ Examples:
     # Merge command
     merge_parser = subparsers.add_parser("merge", help="Merge PDFs and create markdown files by date")
     merge_parser.add_argument("directory", nargs="?", default="./data", help="Directory to process (default: ./data)")
-    merge_parser.add_argument("--pdf-output", default="pdf_notes", help="Output directory for merged PDFs (default: pdf_notes)")
-    merge_parser.add_argument("--markdown-output", default="markdown_notes", help="Output directory for markdown files (default: markdown_notes)")
+    merge_parser.add_argument("--pdf-output", default="pdfs", help="Output directory for merged PDFs (default: pdfs)")
+    merge_parser.add_argument("--markdown-output", default="markdowns", help="Output directory for markdown files (default: markdowns)")
     merge_parser.add_argument("--time-range", choices=["week", "2weeks", "month", "all"], default="all", help="Time range filter (default: all)")
     merge_parser.add_argument("--pdf-only", action="store_true", help="Only merge PDFs, skip markdown creation")
     merge_parser.add_argument("--markdown-only", action="store_true", help="Only create markdown files, skip PDF merging")
+    merge_parser.add_argument("--merge-all", dest="merge_only_timestamped", action="store_false", default=True, help="Merge ALL files by date, not just timestamped ones (default: merge only timestamped)")
     merge_parser.add_argument(
         "--journals-dir",
         default=os.environ.get("SUPYNOTE_JOURNALS_DIR"),

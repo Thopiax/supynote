@@ -22,10 +22,11 @@ except ImportError:
 @dataclass
 class MergeConfig:
     """Configuration for merging operations."""
-    pdf_output_dir: str = "pdf_notes"
-    markdown_output_dir: str = "markdown_notes"
+    pdf_output_dir: str = "pdfs"  # Changed from "pdf_notes" to match new structure
+    markdown_output_dir: str = "markdowns"  # Changed from "markdown_notes" to match new structure
     time_range: str = "all"  # week, 2weeks, month, all
     merge_by_date: bool = True
+    merge_only_timestamped: bool = True  # Only merge files with timestamp names (YYYYMMDD_HHMMSS)
     journals_dir: Optional[Path] = None  # Optional directory to copy markdown files to
     assets_dir: Optional[Path] = None  # Optional directory to copy PDFs to (e.g., Logseq assets)
 
@@ -35,7 +36,11 @@ class DateBasedMerger:
     
     def __init__(self, config: MergeConfig = None):
         self.config = config or MergeConfig()
-    
+
+    def _has_timestamp_pattern(self, filename: str) -> bool:
+        """Check if filename has automatic timestamp pattern (YYYYMMDD_HHMMSS)."""
+        return bool(re.match(r'^\d{8}_\d{6}', filename))
+
     def _extract_date_from_file(self, file_path: Path) -> Optional[datetime]:
         """
         Extract creation date from filename or metadata.
@@ -85,32 +90,53 @@ class DateBasedMerger:
             return now - timedelta(days=30)
         return None
     
-    def _group_files_by_date(self, files: List[Path]) -> Dict[str, List[Tuple[Path, datetime]]]:
-        """Group files by date, filtering by time range."""
+    def _group_files_by_date(self, files: List[Path]) -> tuple[Dict[str, List[Tuple[Path, datetime]]], int, List[Path]]:
+        """
+        Group files by date, filtering by time range and optionally by timestamp pattern.
+
+        Returns:
+            tuple: (files_by_date, skipped_count, non_timestamp_files)
+        """
         files_by_date: Dict[str, List[Tuple[Path, datetime]]] = {}
+        non_timestamp_files: List[Path] = []
         cutoff = self._get_time_cutoff()
         skipped = 0
-        
+
         for file_path in files:
+            # Check if file has timestamp pattern (if selective merging is enabled)
+            if self.config.merge_only_timestamped and not self._has_timestamp_pattern(file_path.stem):
+                # File doesn't have timestamp pattern - keep separately for individual conversion
+                if cutoff:
+                    # Still apply time filter to non-timestamp files
+                    file_date = self._extract_date_from_file(file_path)
+                    if file_date < cutoff:
+                        skipped += 1
+                        continue
+                non_timestamp_files.append(file_path)
+                continue
+
             # Extract date
             file_date = self._extract_date_from_file(file_path)
-            
+
             # Apply time filter
             if cutoff and file_date < cutoff:
                 skipped += 1
                 continue
-            
+
             date_str = file_date.strftime("%Y-%m-%d")
-            
+
             if date_str not in files_by_date:
                 files_by_date[date_str] = []
             files_by_date[date_str].append((file_path, file_date))
-        
+
         # Sort files within each date by time
         for date_str in files_by_date:
             files_by_date[date_str].sort(key=lambda x: x[1])
-        
-        return files_by_date, skipped
+
+        if non_timestamp_files:
+            print(f"ℹ️ Found {len(non_timestamp_files)} files without timestamp names (will convert but not merge)")
+
+        return files_by_date, skipped, non_timestamp_files
     
     def merge_pdfs_by_date(self, directory: Path) -> None:
         """
@@ -134,7 +160,7 @@ class DateBasedMerger:
             return
         
         # Group by date
-        files_by_date, skipped = self._group_files_by_date(pdf_files)
+        files_by_date, skipped, non_timestamp_files = self._group_files_by_date(pdf_files)
         
         if not files_by_date:
             if skipped > 0:
@@ -332,7 +358,7 @@ class DateBasedMerger:
             return
         
         # Group by date
-        files_by_date, skipped = self._group_files_by_date(all_files)
+        files_by_date, skipped, non_timestamp_files = self._group_files_by_date(all_files)
         
         if not files_by_date:
             if skipped > 0:
