@@ -90,7 +90,12 @@ Examples:
     download_parser.add_argument("--no-merge", dest="merge_by_date", action="store_false", help="Skip merging PDFs by date")
     download_parser.add_argument("--merge-all", dest="merge_only_timestamped", action="store_false", default=True, help="Merge ALL files by date, not just timestamped ones (default: merge only timestamped)")
     download_parser.add_argument("--processed-output", help="Directory for final processed files (merged PDFs and markdowns)")
-    
+    download_parser.add_argument(
+        "--journals-dir",
+        default=os.environ.get("SUPYNOTE_JOURNALS_DIR"),
+        help="Directory to copy markdown files to (set via SUPYNOTE_JOURNALS_DIR env var or this argument)"
+    )
+
     # Convert command
     convert_parser = subparsers.add_parser("convert", help="Convert .note files to PDF")
     convert_parser.add_argument("path", help="File or directory path to convert")
