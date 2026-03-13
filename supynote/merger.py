@@ -465,15 +465,15 @@ class DateBasedMerger:
                         # Use assets-relative path (works in Logseq)
                         markdown_content.insert(0, f"- 📄 [View PDF](../assets/{date_str}.pdf)")
                     elif self.config.journals_dir:
-                        # Fallback: compute relative path from journals directory to PDF
-                        import os
+                        # Copy PDF to journals directory (flat structure: md + pdf side by side)
+                        import shutil
                         journals_path = Path(self.config.journals_dir)
-                        try:
-                            rel_path = os.path.relpath(pdf_file, journals_path)
-                            markdown_content.insert(0, f"- 📄 [View PDF]({rel_path})")
-                        except ValueError:
-                            # Paths on different drives, use absolute path as fallback
-                            markdown_content.insert(0, f"- 📄 [View PDF](file://{pdf_file})")
+                        journals_path.mkdir(parents=True, exist_ok=True)
+                        journal_pdf = journals_path / f"{date_str}.pdf"
+                        shutil.copy2(pdf_file, journal_pdf)
+                        print(f"  📎 Copied PDF to journals: {journal_pdf.name}")
+                        # Local reference since both files live in the same folder
+                        markdown_content.insert(0, f"- 📄 [View PDF]({date_str}.pdf)")
 
             # Write markdown file
             try:
@@ -541,3 +541,135 @@ class DateBasedMerger:
             if len(files) > 10:
                 print(f"  ... and {len(files) - 10} more files")
             print(f"  💾 Total size: {total_size:.1f} MB")
+
+    def validate_text_recognition(self, directory: Path, sort_by_missing: bool = False, min_missing: int = 0) -> dict:
+        """
+        Scan all .note files and report text recognition status.
+
+        Args:
+            directory: Directory to scan
+            sort_by_missing: If True, sort by missing pages count; otherwise sort by date
+            min_missing: Only show files with at least this many unrecognized pages
+
+        Returns dict with:
+            - files_with_text: List of (path, pages_with_text, total_pages)
+            - files_without_text: List of (path, total_pages)
+            - files_partial_text: List of (path, pages_with_text, total_pages)
+        """
+        if not SUPERNOTELIB_AVAILABLE:
+            print("❌ supernotelib not available. Install with: uv add supernotelib")
+            return {'files_with_text': [], 'files_without_text': [], 'files_partial_text': []}
+
+        note_files = list(directory.glob("**/*.note"))
+
+        # Exclude output directories
+        note_files = [
+            f for f in note_files
+            if self.config.pdf_output_dir not in str(f) and
+               self.config.markdown_output_dir not in str(f)
+        ]
+
+        results = {
+            'files_with_text': [],
+            'files_without_text': [],
+            'files_partial_text': [],
+        }
+
+        print(f"🔍 Scanning {len(note_files)} .note files for text recognition...")
+
+        for note_path in sorted(note_files):
+            try:
+                notebook = sn.load_notebook(str(note_path))
+                total_pages = notebook.get_total_pages()
+                converter = sn.converter.TextConverter(notebook)
+
+                pages_with_text = 0
+                pages_with_content = 0  # Pages that have handwriting (strokes)
+
+                for page_num in range(total_pages):
+                    try:
+                        page = notebook.get_page(page_num)
+                        # Check if page has actual content (handwritten strokes)
+                        # Use get_totalpath() which contains the stroke data
+                        totalpath = page.get_totalpath()
+                        has_content = totalpath is not None and len(totalpath) > 0
+
+                        if has_content:
+                            pages_with_content += 1
+                            # Check if text was recognized
+                            page_text = converter.convert(page_num)
+                            if page_text and page_text.strip():
+                                pages_with_text += 1
+                    except:
+                        continue
+
+                # Only count pages with content (ignore empty pages)
+                if pages_with_content == 0:
+                    # All pages are empty - this is fine
+                    results['files_with_text'].append((note_path, 0, 0))
+                elif pages_with_text == 0:
+                    results['files_without_text'].append((note_path, pages_with_content))
+                elif pages_with_text < pages_with_content:
+                    results['files_partial_text'].append((note_path, pages_with_text, pages_with_content))
+                else:
+                    results['files_with_text'].append((note_path, pages_with_text, pages_with_content))
+
+            except Exception as e:
+                results['files_without_text'].append((note_path, 0))
+
+        # Combine all files with missing pages and sort together
+        all_missing = []
+        for note_path, pages_with_content in results['files_without_text']:
+            all_missing.append((note_path, 0, pages_with_content, pages_with_content))  # (path, recognized, content, missing)
+        for note_path, pages_with_text, pages_with_content in results['files_partial_text']:
+            missing = pages_with_content - pages_with_text
+            all_missing.append((note_path, pages_with_text, pages_with_content, missing))
+
+        # Filter by min_missing threshold
+        if min_missing > 0:
+            all_missing = [x for x in all_missing if x[3] >= min_missing]
+
+        # Sort by missing pages or by date
+        if sort_by_missing:
+            all_missing.sort(key=lambda x: x[3], reverse=True)
+            print(f"\n📄 Files missing text (sorted by missing pages):\n")
+        else:
+            all_missing.sort(key=lambda x: x[0].name, reverse=True)
+            print(f"\n📄 Files missing text (sorted by date, newest first):\n")
+
+        for note_path, pages_with_text, pages_with_content, missing in all_missing:
+            if pages_with_text == 0:
+                print(f"  ❌ {note_path.name}: 0/{pages_with_content} content pages ({missing} unrecognized)")
+            else:
+                print(f"  ⚠️  {note_path.name}: {pages_with_text}/{pages_with_content} content pages ({missing} unrecognized)")
+
+        # Print summary
+        total_unrecognized = (
+            sum(t[1] for t in results['files_without_text']) +
+            sum(t[2] - t[1] for t in results['files_partial_text'])
+        )
+        print(f"\n📊 Summary:")
+        print(f"   ✅ Files fully recognized: {len(results['files_with_text'])}")
+        print(f"   ⚠️  Files partially recognized: {len(results['files_partial_text'])}")
+        print(f"   ❌ Files not recognized: {len(results['files_without_text'])}")
+        print(f"   📝 Total unrecognized content pages: {total_unrecognized}")
+
+        return results
+
+    def print_fix_instructions(self, results: dict) -> None:
+        """Print instructions for fixing missing text recognition."""
+        if not results['files_without_text'] and not results['files_partial_text']:
+            print("\n✨ All files have complete text recognition!")
+            return
+
+        print("\n📝 To fix missing text recognition:")
+        print("   1. Open each file on your Supernote device")
+        print("   2. Use the 'Convert' menu to run text recognition")
+        print("   3. Re-sync/download the files")
+        print("\n   Files needing attention:")
+
+        for path, content_pages in results['files_without_text']:
+            print(f"   - {path.name} ({content_pages} content pages, none recognized)")
+
+        for path, recognized, content_pages in results['files_partial_text']:
+            print(f"   - {path.name} ({recognized}/{content_pages} content pages recognized)")

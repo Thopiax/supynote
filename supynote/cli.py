@@ -2,6 +2,7 @@
 
 import argparse
 import webbrowser
+from importlib.metadata import version
 from pathlib import Path
 import os
 
@@ -38,6 +39,8 @@ Examples:
   supynote download Note/file.note # Download specific file
   supynote convert file.note       # Convert .note file to PDF
   supynote convert Note/           # Convert all .note files in directory
+  supynote validate --text         # Check which notes have text recognition
+  supynote validate --text --fix   # Show how to fix missing text recognition
   supynote ocr file.note           # Create searchable PDF from .note (native text)
   supynote ocr handwritten.pdf --engine llava  # OCR handwritten PDF with LLaVA
   supynote ocr notes/ --batch      # Batch process .note files to searchable PDFs
@@ -47,6 +50,7 @@ Examples:
         """
     )
     
+    parser.add_argument("--version", action="version", version=f"%(prog)s {version('supynote')}")
     parser.add_argument("--ip", help="Supernote device IP address")
     parser.add_argument("--port", default="8089", help="Device port (default: 8089)")
     parser.add_argument("--output", "-o", help="Local output directory")
@@ -101,10 +105,13 @@ Examples:
     subparsers.add_parser("info", help="Show device information")
     
     # Validate command
-    validate_parser = subparsers.add_parser("validate", help="Find corrupted .note files in downloaded directory")
+    validate_parser = subparsers.add_parser("validate", help="Validate .note files (check corruption or text recognition)")
     validate_parser.add_argument("directory", nargs="?", default="./data", help="Directory to validate (default: ./data)")
-    validate_parser.add_argument("--workers", type=int, default=default_conversion_workers, 
+    validate_parser.add_argument("--workers", type=int, default=default_conversion_workers,
                                 help=f"Number of parallel validation workers (default: {default_conversion_workers})")
+    validate_parser.add_argument("--text", action="store_true", help="Check text recognition status (for markdown export)")
+    validate_parser.add_argument("--sort-missing", action="store_true", help="Sort by number of missing pages instead of date")
+    validate_parser.add_argument("--min-missing", type=int, default=0, help="Only show files with at least N unrecognized pages")
     validate_parser.add_argument("--fix", action="store_true", help="Re-download all problematic files (requires device connection)")
     validate_parser.add_argument("--convert", action="store_true", help="Convert re-downloaded files to PDF after fixing")
     

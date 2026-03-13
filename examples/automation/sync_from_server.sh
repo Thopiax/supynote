@@ -66,15 +66,14 @@ cd "$PROJECT_ROOT"
 uv run supynote convert "${LOCAL_DIR}" \
     --workers 16
 
-# Merge all PDFs by date and create markdown files
+# Merge all PDFs by date and create markdown files into a flat journals/ folder
 # Note: Merge runs on LOCAL_DIR where both .note and .pdf files exist
+JOURNALS_DIR="${SUPYNOTE_JOURNALS_DIR:-${OUTPUT_DIR}/journals}"
 echo ""
-echo "📅 Merging PDFs by date and creating markdown files..."
+echo "📅 Merging by date into journals folder..."
 uv run supynote merge "${LOCAL_DIR}" \
-    --pdf-output "${OUTPUT_DIR}/pdfs" \
-    --markdown-output "${OUTPUT_DIR}/markdowns"
+    --journals-dir "${JOURNALS_DIR}"
 
 echo ""
 echo "✅ Complete!"
-echo "📁 PDFs:      ${OUTPUT_DIR}/pdfs"
-echo "📝 Markdowns: ${OUTPUT_DIR}/markdowns"
+echo "📔 Journals: ${JOURNALS_DIR}"

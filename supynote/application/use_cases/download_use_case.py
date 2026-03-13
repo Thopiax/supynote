@@ -109,21 +109,26 @@ class DownloadUseCase:
     
     def execute_validate(self, args: Any) -> bool:
         """Execute validate command using legacy code."""
-        from concurrent.futures import ThreadPoolExecutor, as_completed
-        from ...converter import PDFConverter
-        
         directory = Path(args.directory)
         if not directory.exists():
             print(f"❌ Directory does not exist: {directory}")
             return False
-        
+
+        # Check text recognition status
+        if getattr(args, 'text', False):
+            return self._validate_text_recognition(directory, args)
+
+        # Original validation logic for corrupted files
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        from ...converter import PDFConverter
+
         # Find all .note files
         note_files = list(directory.rglob("*.note"))
         print(f"🔍 Found {len(note_files)} .note files to validate")
-        
+
         converter = PDFConverter()
         problematic_files = []
-        
+
         def validate_file(file_path):
             try:
                 # Try to convert to validate
@@ -131,35 +136,53 @@ class DownloadUseCase:
                 return file_path, True, None
             except Exception as e:
                 return file_path, False, str(e)
-        
+
         with ThreadPoolExecutor(max_workers=args.workers) as executor:
             futures = {executor.submit(validate_file, f): f for f in note_files}
-            
+
             for future in as_completed(futures):
                 file_path, success, error = future.result()
                 if not success:
                     problematic_files.append((file_path, error))
                     print(f"❌ {file_path}: {error}")
-        
+
         if problematic_files:
             print(f"\n⚠️ Found {len(problematic_files)} problematic files")
-            
+
             if args.fix:
                 ip = self._get_device_ip(args)
                 if ip:
                     print("🔧 Re-downloading problematic files...")
                     from ...supernote import Supernote
                     device = Supernote(ip, args.port)
-                    
+
                     for file_path, _ in problematic_files:
                         relative_path = file_path.relative_to(directory)
                         device.download_file(str(relative_path), force=True)
-                        
+
                         if args.convert:
                             converter.convert_file(file_path)
         else:
             print("✅ All files validated successfully")
-        
+
+        return True
+
+    def _validate_text_recognition(self, directory: Path, args: Any) -> bool:
+        """Validate text recognition status of .note files."""
+        from ...merger import DateBasedMerger, MergeConfig
+
+        merger = DateBasedMerger(MergeConfig())
+        sort_by_missing = getattr(args, 'sort_missing', False)
+        min_missing = getattr(args, 'min_missing', 0)
+        results = merger.validate_text_recognition(
+            directory,
+            sort_by_missing=sort_by_missing,
+            min_missing=min_missing
+        )
+
+        if getattr(args, 'fix', False):
+            merger.print_fix_instructions(results)
+
         return True
     
     def execute_ocr(self, args: Any) -> bool:
