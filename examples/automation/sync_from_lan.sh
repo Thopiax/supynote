@@ -28,6 +28,7 @@ TIME_RANGE="${1:-2weeks}"  # Default to 2weeks if not specified
 OUTPUT_DIR="${SUPYNOTE_OUTPUT_DIR:-$HOME/Documents/Supernote}"
 CACHE_DIR="${SUPYNOTE_CACHE_DIR:-$SCRIPT_DIR/../../data}"
 LOG_FILE="$SCRIPT_DIR/sync.log"
+JOURNAL_DIR="${SUPYNOTE_JOURNALS_DIR:-$OUTPUT_DIR/journals}"
 
 # Function to output notification for Alfred
 notify_alfred() {
@@ -93,6 +94,7 @@ $UV_CMD run supynote --output "$CACHE_DIR" download Note \
     --async \
     --workers 30 \
     --conversion-workers 16 \
+    --journals-dir "${JOURNAL_DIR}" \
     --processed-output "$OUTPUT_DIR" >> "$LOG_FILE" 2>&1
 
 SYNC_EXIT_CODE=$?

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "supynote"
-version = "0.9.3"
+version = "0.9.4"
 description = "A simple CLI tool to interact with Supernote devices"
 readme = "README.md"
 requires-python = ">=3.8.1"

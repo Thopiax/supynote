@@ -400,10 +400,14 @@ class DateBasedMerger:
                 # Process each page as its own section
                 moment_pattern = re.compile(r'^-?\s*[mM][oOeE]?\s*\.?\s*\d+')
 
-                for page_text in pages:
+                for page_idx, page_text in enumerate(pages):
                     lines = page_text.strip().split('\n')
                     if not lines or not any(line.strip() for line in lines):
                         continue
+
+                    # Add page divider between pages
+                    if markdown_content:
+                        markdown_content.append("---")
 
                     first_line = lines[0].strip()
                     first_line = re.sub(r'^-\s*', '', first_line)  # Remove leading dash
@@ -446,34 +450,6 @@ class DateBasedMerger:
                         bullets = self._format_text_as_bullets(content_lines)
                         if bullets:
                             markdown_content.append(bullets)
-
-            # Add PDF link if PDF exists
-            if markdown_content:  # Only add if there's content
-                pdf_output_dir = directory / self.config.pdf_output_dir
-                pdf_file = pdf_output_dir / f"{date_str}.pdf"
-
-                if pdf_file.exists():
-                    # Copy PDF to assets directory if configured
-                    if self.config.assets_dir:
-                        import shutil
-                        assets_path = Path(self.config.assets_dir)
-                        assets_path.mkdir(parents=True, exist_ok=True)
-                        assets_pdf = assets_path / f"{date_str}.pdf"
-                        shutil.copy2(pdf_file, assets_pdf)
-                        print(f"  📎 Copied PDF to assets: {assets_pdf.name}")
-
-                        # Use assets-relative path (works in Logseq)
-                        markdown_content.insert(0, f"- 📄 [View PDF](../assets/{date_str}.pdf)")
-                    elif self.config.journals_dir:
-                        # Copy PDF to journals directory (flat structure: md + pdf side by side)
-                        import shutil
-                        journals_path = Path(self.config.journals_dir)
-                        journals_path.mkdir(parents=True, exist_ok=True)
-                        journal_pdf = journals_path / f"{date_str}.pdf"
-                        shutil.copy2(pdf_file, journal_pdf)
-                        print(f"  📎 Copied PDF to journals: {journal_pdf.name}")
-                        # Local reference since both files live in the same folder
-                        markdown_content.insert(0, f"- 📄 [View PDF]({date_str}.pdf)")
 
             # Write markdown file
             try:
