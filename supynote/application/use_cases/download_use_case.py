@@ -244,7 +244,9 @@ class DownloadUseCase:
             markdown_output_dir=args.markdown_output,
             time_range=args.time_range,
             journals_dir=journals_dir,
-            assets_dir=assets_dir
+            assets_dir=assets_dir,
+            force=getattr(args, 'force', False),
+            verbose=getattr(args, 'verbose', False),
         )
 
         merger = DateBasedMerger(merge_config)

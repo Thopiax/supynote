@@ -185,8 +185,14 @@ class NativeSupernoteService:
             
             if not page_texts:
                 print(f"⚠️ No text extracted from {note_path.name}")
-                # Still create the PDF without text layer
-                temp_pdf_path.rename(output_path)
+                # Still produce the PDF without a text layer. When the caller
+                # passed an existing PDF, it owns that file (it will unlink and
+                # rename afterwards), so copy rather than rename it away.
+                if existing_pdf_path:
+                    import shutil
+                    shutil.copy2(temp_pdf_path, output_path)
+                else:
+                    temp_pdf_path.rename(output_path)
                 return True
             
             if progress_callback:

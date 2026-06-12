@@ -4307,7 +4307,7 @@ wheels = [
 
 [[package]]
 name = "supernotelib"
-version = "0.6.4"
+version = "0.7.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "colour" },
@@ -4327,14 +4327,14 @@ dependencies = [
     { name = "svglib", version = "1.6.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.9'" },
     { name = "svgwrite" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/89/3f/381f143b389a5b4aa090d89fd5511026ec0953b1923b47c6aab4037a7714/supernotelib-0.6.4.tar.gz", hash = "sha256:8b6500429d5625f9363cc83be1ae75987c3900e46b5ef4173d74d9af1227821c", size = 26887 }
+sdist = { url = "https://files.pythonhosted.org/packages/71/d5/b50ce5df0b6a8f3bead25207dacfd9ff2986a58f3241c4a1d0d9ad734ace/supernotelib-0.7.1.tar.gz", hash = "sha256:566ff148104a7db97d8528eb84bd5cd8912fe8363e08e57597594089cf44703b", size = 27963 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/ab/6f/4a138d701673b48b17a2bbf502f5fe238d0a4236efb16b9ac1f1139801e4/supernotelib-0.6.4-py3-none-any.whl", hash = "sha256:a57745b6f9b54d08cc84850d12d83b9ea47253469056bf9bc2db0ce27240e98d", size = 37541 },
+    { url = "https://files.pythonhosted.org/packages/a1/52/acec144898698c13cd93174c5b11d74f7e00a443675be68b97d62dcf2369/supernotelib-0.7.1-py3-none-any.whl", hash = "sha256:e79d7fed0b111636a63078e194f06adde4b7e508e42452ddf51346d1162e4bb1", size = 38687 },
 ]
 
 [[package]]
 name = "supynote"
-version = "0.9.2"
+version = "0.9.7"
 source = { editable = "." }
 dependencies = [
     { name = "aiofiles", version = "24.1.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.9'" },
@@ -4342,6 +4342,9 @@ dependencies = [
     { name = "aiohttp", version = "3.10.11", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.9'" },
     { name = "aiohttp", version = "3.13.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.9'" },
     { name = "beautifulsoup4" },
+    { name = "pymupdf", version = "1.24.11", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.9'" },
+    { name = "pymupdf", version = "1.26.5", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.9.*'" },
+    { name = "pymupdf", version = "1.26.7", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
     { name = "pypdf", version = "5.9.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.9'" },
     { name = "pypdf", version = "6.4.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.9'" },
     { name = "requests", version = "2.32.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.9'" },
@@ -4369,9 +4372,6 @@ ocr = [
     { name = "pillow", version = "10.4.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.9'" },
     { name = "pillow", version = "11.3.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.9.*'" },
     { name = "pillow", version = "12.0.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
-    { name = "pymupdf", version = "1.24.11", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.9'" },
-    { name = "pymupdf", version = "1.26.5", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.9.*'" },
-    { name = "pymupdf", version = "1.26.7", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
     { name = "torch", version = "2.5.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.9'" },
     { name = "torch", version = "2.8.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.9.*'" },
     { name = "torch", version = "2.9.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
@@ -4404,11 +4404,11 @@ requires-dist = [
     { name = "numpy", marker = "extra == 'ocr'", specifier = ">=1.24.4" },
     { name = "opencv-python", marker = "extra == 'ocr'", specifier = ">=4.8.0" },
     { name = "pillow", marker = "extra == 'ocr'", specifier = ">=10.4.0" },
-    { name = "pymupdf", marker = "extra == 'ocr'", specifier = ">=1.24.11" },
+    { name = "pymupdf", specifier = ">=1.24.11" },
     { name = "pypdf", specifier = ">=5.9.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.3.5" },
     { name = "requests", specifier = ">=2.25.0" },
-    { name = "supernotelib", specifier = ">=0.6.0" },
+    { name = "supernotelib", specifier = ">=0.7.1" },
     { name = "torch", marker = "extra == 'ocr'", specifier = ">=2.5.1" },
     { name = "torchvision", marker = "extra == 'ocr'", specifier = ">=0.20.1" },
     { name = "transformers", marker = "extra == 'ocr'", specifier = ">=4.46.3" },

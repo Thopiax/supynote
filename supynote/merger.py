@@ -29,6 +29,8 @@ class MergeConfig:
     merge_only_timestamped: bool = True  # Only merge files with timestamp names (YYYYMMDD_HHMMSS)
     journals_dir: Optional[Path] = None  # Optional directory to copy markdown files to
     assets_dir: Optional[Path] = None  # Optional directory to copy PDFs to (e.g., Logseq assets)
+    force: bool = False  # Overwrite existing files in journals directory
+    verbose: bool = False  # Per-file logging; off by default (one line per date + summary)
 
 
 class DateBasedMerger:
@@ -181,27 +183,29 @@ class DateBasedMerger:
         # Merge PDFs for each date
         for date_str, date_files in sorted(files_by_date.items()):
             output_file = output_dir / f"{date_str}.pdf"
-            
-            if output_file.exists():
-                print(f"🔄 Updating {date_str}.pdf...")
-            else:
-                print(f"📝 Creating {date_str}.pdf with {len(date_files)} files...")
-            
+
+            if self.config.verbose:
+                action = "Updating" if output_file.exists() else "Creating"
+                print(f"📝 {action} {date_str}.pdf with {len(date_files)} files...")
+
             merger = PdfWriter()
-            
+
+            added = 0
             for pdf_file, creation_time in date_files:
                 try:
                     merger.append(str(pdf_file))
-                    time_str = creation_time.strftime('%H:%M:%S')
-                    print(f"  ✅ Added {pdf_file.name} ({time_str})")
+                    added += 1
+                    if self.config.verbose:
+                        print(f"  ✅ Added {pdf_file.name} ({creation_time.strftime('%H:%M:%S')})")
                 except Exception as e:
                     print(f"  ❌ Error adding {pdf_file.name}: {e}")
-            
-            # Write merged PDF
+
+            # Write merged PDF — one concise line per date unless verbose
             try:
                 with open(output_file, 'wb') as output:
                     merger.write(output)
-                print(f"✅ Created {output_file.name}")
+                if self.config.verbose:
+                    print(f"✅ Created {output_file.name} ({added} file{'s' if added != 1 else ''})")
             except Exception as e:
                 print(f"❌ Error writing {output_file.name}: {e}")
             finally:
@@ -235,7 +239,7 @@ class DateBasedMerger:
             return None
 
     def _detect_moments(self, pages: List[str]) -> List[Tuple[Optional[str], List[str]]]:
-        """
+        r"""
         Parse pages and group them by 'moment' pattern.
         Returns list of (moment_title, content_lines) tuples.
         Moment title is detected by pattern: ^-?\s*[mM][eE]?\s*\.?\s*\d+
@@ -380,10 +384,9 @@ class DateBasedMerger:
         for date_str, date_files in sorted(files_by_date.items()):
             output_file = output_dir / f"{date_str}.md"
 
-            if output_file.exists():
-                print(f"🔄 Updating {date_str}.md...")
-            else:
-                print(f"📝 Creating {date_str}.md with {len(date_files)} files...")
+            if self.config.verbose:
+                action = "Updating" if output_file.exists() else "Creating"
+                print(f"📝 {action} {date_str}.md with {len(date_files)} files...")
 
             markdown_content = []
 
@@ -392,10 +395,12 @@ class DateBasedMerger:
                 pages = self._extract_text_from_note(file_path)
 
                 if not pages:
-                    print(f"  ⏭️ No text in {file_path.name}")
+                    if self.config.verbose:
+                        print(f"  ⏭️ No text in {file_path.name}")
                     continue
 
-                print(f"  ✅ Extracted text from {file_path.name}")
+                if self.config.verbose:
+                    print(f"  ✅ Extracted text from {file_path.name}")
 
                 # Process each page as its own section
                 moment_pattern = re.compile(r'^-?\s*[mM][oOeE]?\s*\.?\s*\d+')
@@ -456,18 +461,23 @@ class DateBasedMerger:
                 with open(output_file, 'w', encoding='utf-8') as f:
                     # Join with single newline between sections
                     f.write('\n'.join(markdown_content))
-                print(f"✅ Created {output_file.name}")
-                
-                # Copy to journals directory if configured
+                if self.config.verbose:
+                    print(f"✅ Created {output_file.name}")
+
+                # Copy to journals directory if configured (and output isn't already there)
                 if self.config.journals_dir:
                     journals_path = Path(self.config.journals_dir)
-                    if journals_path.exists():
+                    if output_file.parent.resolve() == journals_path.resolve():
+                        pass  # Already written directly to journals_dir
+                    elif journals_path.exists():
                         journal_file = journals_path / output_file.name
-                        if not journal_file.exists():
+                        if not journal_file.exists() or self.config.force:
                             import shutil
                             shutil.copy2(output_file, journal_file)
-                            print(f"  📔 Copied to journals: {journal_file}")
-                        else:
+                            action = "Overwrote" if journal_file.exists() else "Copied to"
+                            if self.config.verbose:
+                                print(f"  📔 {action} journals: {journal_file}")
+                        elif self.config.verbose:
                             print(f"  ⏭️ Journal entry already exists: {journal_file.name}")
                     else:
                         print(f"  ⚠️ Journals directory not found: {journals_path}")
@@ -487,7 +497,6 @@ class DateBasedMerger:
         print(f"📁 Markdown output: {self.config.markdown_output_dir}/")
         print()
         
-        # Merge PDFs
         print("=" * 50)
         print("PDF MERGING")
         print("=" * 50)

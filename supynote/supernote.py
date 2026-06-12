@@ -24,20 +24,20 @@ class Supernote:
         self.ip_address = ip_address
         self.port = port
         self.remote_root = f"http://{ip_address}:{port}"
-        self.local_root = Path(local_root) if local_root else Path.cwd() / "data"
+        if local_root:
+            self.local_root = Path(local_root)
+        else:
+            env_root = os.environ.get("SUPYNOTE_OUTPUT_DIR")
+            self.local_root = Path(env_root) if env_root else Path.home() / "Documents" / "Supernote" / "data"
         self.verbose = verbose
-        
-        # Create directory structure
+
         # Cache for intermediate .note files (temp storage)
         self.cache_dir = Path.home() / ".cache" / "supynote"
-        # User-facing output directories
-        self.pdfs_dir = self.local_root / "pdfs"    # PDF outputs
-        self.markdowns_dir = self.local_root / "markdowns"  # Markdown outputs
+        # User-facing output directories (created lazily by consumers)
+        self.pdfs_dir = self.local_root / "pdfs"
+        self.markdowns_dir = self.local_root / "markdowns"
 
-        # Ensure directories exist
         self.cache_dir.mkdir(parents=True, exist_ok=True)
-        self.pdfs_dir.mkdir(parents=True, exist_ok=True)
-        self.markdowns_dir.mkdir(parents=True, exist_ok=True)
         
         # Async session (created when needed)
         self._session: Optional['aiohttp.ClientSession'] = None

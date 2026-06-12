@@ -126,7 +126,8 @@ class PDFConverter:
         # Validate the file first
         is_valid, error_msg = self._validate_note_file(input_path)
         if not is_valid:
-            print(f"❌ {error_msg}")
+            if self.verbose:
+                print(f"❌ {input_path.name}: {error_msg}")
             return False
         
         if output_path is None:
@@ -147,18 +148,20 @@ class PDFConverter:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         
         try:
-            print(f"🔄 Converting {input_path.name} to PDF...")
-            
+            if self.verbose:
+                print(f"🔄 Converting {input_path.name} to PDF...")
+
             # Load the notebook (already validated above)
             notebook = sn.load_notebook(str(input_path), policy='loose')
             total_pages = notebook.get_total_pages()
-            
+
             if total_pages == 0:
                 if self.verbose:
                     print(f"⚠️ Warning: {input_path.name} contains no pages, skipping")
                 return False
-            
-            print(f"📄 Processing {total_pages} page(s)...")
+
+            if self.verbose:
+                print(f"📄 Processing {total_pages} page(s)...")
             
             # Create PDF converter with error handling
             try:
@@ -191,7 +194,8 @@ class PDFConverter:
                 print(f"❌ Failed to write PDF file {output_path}: {e}")
                 return False
             
-            print(f"✅ Successfully converted to {output_path}")
+            if self.verbose:
+                print(f"✅ Successfully converted to {output_path}")
             return True
             
         except Exception as e:
@@ -276,7 +280,11 @@ class PDFConverter:
                 except Exception as e:
                     print(f"❌ Error converting {note_file.name}: {e}")
         
-        print(f"🎉 Converted {successful}/{len(note_files)} files successfully")
+        failed = len(note_files) - successful
+        if failed and not self.verbose:
+            print(f"🎉 Converted {successful}/{len(note_files)} files ({failed} skipped — run with --verbose to see which)")
+        else:
+            print(f"🎉 Converted {successful}/{len(note_files)} files successfully")
         return successful, len(note_files)
     
     def convert_files_batch(self, file_paths: List[Union[str, Path]], output_dir: Optional[Union[str, Path]] = None, max_workers: int = 4) -> tuple[int, int]:
@@ -331,7 +339,11 @@ class PDFConverter:
                 except Exception as e:
                     print(f"❌ Error converting {note_file.name}: {e}")
         
-        print(f"🎉 Converted {successful}/{len(note_files)} files successfully")
+        failed = len(note_files) - successful
+        if failed and not self.verbose:
+            print(f"🎉 Converted {successful}/{len(note_files)} files ({failed} skipped — run with --verbose to see which)")
+        else:
+            print(f"🎉 Converted {successful}/{len(note_files)} files successfully")
         return successful, len(note_files)
     
     def get_note_info(self, note_path: Union[str, Path]) -> Optional[dict]:

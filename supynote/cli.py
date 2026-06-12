@@ -11,6 +11,12 @@ from .supernote import Supernote
 from .converter import PDFConverter
 
 
+def _default_data_dir() -> str:
+    """Default local data directory. Honors SUPYNOTE_OUTPUT_DIR, else ~/Documents/Supernote/data."""
+    env_root = os.environ.get("SUPYNOTE_OUTPUT_DIR")
+    return env_root if env_root else str(Path.home() / "Documents" / "Supernote" / "data")
+
+
 def get_optimal_workers():
     """Get optimal worker count based on CPU cores."""
     try:
@@ -81,8 +87,8 @@ Examples:
     download_parser.add_argument("--no-convert-pdf", dest="convert_pdf", action="store_false", help="Skip PDF conversion")
     download_parser.add_argument("--conversion-workers", type=int, default=default_conversion_workers, 
                                 help=f"Number of parallel PDF conversion workers (default: {default_conversion_workers})")
-    download_parser.add_argument("--ocr", dest="ocr", action="store_true", default=True, help="Create searchable PDFs using native text extraction (default: enabled)")
-    download_parser.add_argument("--no-ocr", dest="ocr", action="store_false", help="Skip OCR processing")
+    download_parser.add_argument("--ocr", dest="ocr", action="store_true", default=False, help="Add a searchable text layer to PDFs via native text extraction (default: disabled; markdown text is unaffected)")
+    download_parser.add_argument("--no-ocr", dest="ocr", action="store_false", help="Skip OCR processing (default)")
     download_parser.add_argument("--force", action="store_true", help="Force re-download even if files exist locally")
     download_parser.add_argument("--check-size", action="store_true", default=True, help="Skip files if local size matches remote (default: true)")
     download_parser.add_argument("--time-range", choices=["week", "2weeks", "month", "all"], default="all", help="Download files from time range (default: all)")
@@ -111,7 +117,7 @@ Examples:
     
     # Validate command
     validate_parser = subparsers.add_parser("validate", help="Validate .note files (check corruption or text recognition)")
-    validate_parser.add_argument("directory", nargs="?", default="./data", help="Directory to validate (default: ./data)")
+    validate_parser.add_argument("directory", nargs="?", default=_default_data_dir(), help=f"Directory to validate (default: {_default_data_dir()})")
     validate_parser.add_argument("--workers", type=int, default=default_conversion_workers,
                                 help=f"Number of parallel validation workers (default: {default_conversion_workers})")
     validate_parser.add_argument("--text", action="store_true", help="Check text recognition status (for markdown export)")
@@ -134,7 +140,7 @@ Examples:
     
     # Merge command
     merge_parser = subparsers.add_parser("merge", help="Merge PDFs and create markdown files by date")
-    merge_parser.add_argument("directory", nargs="?", default="./data", help="Directory to process (default: ./data)")
+    merge_parser.add_argument("directory", nargs="?", default=_default_data_dir(), help=f"Directory to process (default: {_default_data_dir()})")
     merge_parser.add_argument("--pdf-output", default="pdfs", help="Output directory for merged PDFs (default: pdfs)")
     merge_parser.add_argument("--markdown-output", default="markdowns", help="Output directory for markdown files (default: markdowns)")
     merge_parser.add_argument("--time-range", choices=["week", "2weeks", "month", "all"], default="all", help="Time range filter (default: all)")
@@ -146,6 +152,7 @@ Examples:
         default=os.environ.get("SUPYNOTE_JOURNALS_DIR"),
         help="Directory to copy markdown files to (set via SUPYNOTE_JOURNALS_DIR env var or this argument)"
     )
+    merge_parser.add_argument("--force", action="store_true", help="Overwrite existing files in journals directory")
     
     args = parser.parse_args()
     

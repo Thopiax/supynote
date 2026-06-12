@@ -51,17 +51,23 @@ class PostProcessingService:
         
         def process_note_for_ocr(note_file):
             pdf_file = note_file.with_suffix('.pdf')
-            if pdf_file.exists():
-                searchable_pdf = pdf_file.with_stem(f"{pdf_file.stem}_searchable")
+            if not pdf_file.exists():
+                return False
+            searchable_pdf = pdf_file.with_stem(f"{pdf_file.stem}_searchable")
+            try:
                 # Pass existing PDF to avoid reconversion
                 success = native_service.convert_note_to_searchable_pdf(
                     note_file, searchable_pdf, existing_pdf_path=pdf_file)
-                if success:
-                    # Remove intermediate PDF
-                    pdf_file.unlink()
-                    # Rename searchable PDF to original name
+                if success and searchable_pdf.exists():
+                    # Swap the searchable PDF into the original's place
+                    pdf_file.unlink(missing_ok=True)
                     searchable_pdf.rename(pdf_file)
                     return True
+                # Drop any stray partial output so it isn't merged later
+                searchable_pdf.unlink(missing_ok=True)
+            except Exception as e:
+                print(f"  ❌ OCR failed for {note_file.name}: {e}")
+                searchable_pdf.unlink(missing_ok=True)
             return False
         
         successful_ocr = 0
@@ -93,25 +99,30 @@ class PostProcessingService:
         print("🚀 Starting merger processing...")
         from ..merger import DateBasedMerger, MergeConfig
         
-        # Use output_dir if provided, otherwise use device's output directories
+        # Get journals directory from env var or args
+        journals_dir_str = os.environ.get("SUPYNOTE_JOURNALS_DIR") or getattr(args, 'journals_dir', None)
+        journals_dir = Path(journals_dir_str) if journals_dir_str else None
+
+        # Resolve output roots
         if output_dir:
             pdf_output = str(output_dir / "pdfs")
             markdown_output = str(output_dir / "markdowns")
         else:
-            # Use new flat directory structure
             pdf_output = str(device.pdfs_dir)
             markdown_output = str(device.markdowns_dir)
 
-        # Get journals directory from env var or args, with fallback to None
-        journals_dir_str = os.environ.get("SUPYNOTE_JOURNALS_DIR") or getattr(args, 'journals_dir', None)
-        journals_dir = Path(journals_dir_str) if journals_dir_str else None
+        # When journals_dir provided, write both markdowns and merged PDFs there.
+        if journals_dir is not None:
+            markdown_output = str(journals_dir)
+            pdf_output = str(journals_dir)
 
         merge_config = MergeConfig(
             pdf_output_dir=pdf_output,
             markdown_output_dir=markdown_output,
             time_range=getattr(args, 'time_range', 'all'),
-            merge_only_timestamped=getattr(args, 'merge_only_timestamped', True),  # Default to True
-            journals_dir=journals_dir
+            merge_only_timestamped=getattr(args, 'merge_only_timestamped', True),
+            journals_dir=journals_dir,
+            verbose=getattr(args, 'verbose', False),
         )
         merger = DateBasedMerger(merge_config)
         merger.merge_all_by_date(local_dir)

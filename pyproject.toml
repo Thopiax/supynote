@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "supynote"
-version = "0.9.4"
+version = "0.9.7"
 description = "A simple CLI tool to interact with Supernote devices"
 readme = "README.md"
 requires-python = ">=3.8.1"
@@ -28,10 +28,11 @@ classifiers = [
 dependencies = [
     "requests>=2.25.0",
     "beautifulsoup4>=4.9.0",
-    "supernotelib>=0.6.0",
+    "supernotelib>=0.7.1",
     "aiohttp>=3.8.0",
     "aiofiles>=23.0.0",
     "pypdf>=5.9.0",
+    "pymupdf>=1.24.11",
 ]
 
 [project.urls]
@@ -44,7 +45,6 @@ ocr = [
     "transformers>=4.46.3",
     "torch>=2.5.1",
     "torchvision>=0.20.1",
-    "pymupdf>=1.24.11",
     "pillow>=10.4.0",
     "numpy>=1.24.4",
     "opencv-python>=4.8.0",

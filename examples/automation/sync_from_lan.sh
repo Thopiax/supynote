@@ -90,12 +90,10 @@ $UV_CMD run supynote --output "$CACHE_DIR" download Note \
     --time-range "$TIME_RANGE" \
     --convert-pdf \
     --merge-by-date \
-    --ocr \
     --async \
     --workers 30 \
     --conversion-workers 16 \
-    --journals-dir "${JOURNAL_DIR}" \
-    --processed-output "$OUTPUT_DIR" >> "$LOG_FILE" 2>&1
+    --journals-dir "${JOURNAL_DIR}" >> "$LOG_FILE" 2>&1
 
 SYNC_EXIT_CODE=$?
 
@@ -108,8 +106,8 @@ SECONDS=$((ELAPSED % 60))
 # Check the exit status and prepare notification
 if [ $SYNC_EXIT_CODE -eq 0 ]; then
     # Count files for status details
-    PDF_COUNT=$(find "$OUTPUT_DIR/pdfs" -name "*.pdf" -mmin -$((ELAPSED/60 + 1)) 2>/dev/null | wc -l | tr -d ' ')
-    MD_COUNT=$(find "$OUTPUT_DIR/markdowns" -name "*.md" -mmin -$((ELAPSED/60 + 1)) 2>/dev/null | wc -l | tr -d ' ')
+    PDF_COUNT=$(find "$JOURNAL_DIR" -name "*.pdf" -mmin -$((ELAPSED/60 + 1)) 2>/dev/null | wc -l | tr -d ' ')
+    MD_COUNT=$(find "$JOURNAL_DIR" -name "*.md" -mmin -$((ELAPSED/60 + 1)) 2>/dev/null | wc -l | tr -d ' ')
 
     # Format time string
     if [ $MINUTES -gt 0 ]; then
